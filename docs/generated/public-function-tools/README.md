@@ -1,6 +1,6 @@
 # 基于公开 OpenAPI 生成 function tools 清单
 
-自动生成；共 55 个工具。来源 `/open/v1`，不包含内部接口、已退役接口、流式接口或 C 类增量接口。
+自动生成；共 58 个工具。来源 `/open/v1`，不包含内部接口、已退役接口、流式接口或 C 类增量接口。
 
 调用方按资源标签按需加载工具；使用 `responses-tools.json` 的 Responses function 格式，或 `chat-completions-tools.json` 的 Chat Completions 格式。
 
@@ -12,7 +12,9 @@
 
 文档只读准入沿用 available/current-ref；当前 open:* 权限不提供组织过滤。业务记录按独立领域边界公开。
 
-当前覆盖资产中心 17 类可见资源：产教政策、法规标准、产业报告、行业报告、专业简介、专业布点数据、专业教学标准、标准课程库、人才需求调研、人才培养方案、职业分类大典、职业能力分析、市场岗位、产业园区、企业数据、课程教材、教学案例。共享文档类通过 find_documents 的 resource_type/domain(s) 筛选；独立记录和投影使用各自专用工具。
+当前覆盖资产中心18类可见资源：产教政策、法规标准、产业报告、行业报告、专业简介、专业布点数据、专业教学标准、标准课程库、人才需求调研、人才培养方案、职业分类大典、职业能力分析、市场岗位、产业园区、电商示范基地、企业数据、课程教材、教学案例。共享文档类通过 find_documents 的 resource_type/domain(s) 筛选；独立记录和投影使用各自专用工具。
+
+电子商务示范基地使用 query_ecommerce_demo_bases / aggregate_ecommerce_demo_bases / get_ecommerce_demo_base，读取独立 ecommerce_parks 名录。省略level查询两级；计数按名录记录，不跨级/同名合并。来源链接/JSON定位按需读取，不使用产业园区或通用证据bundle替代，不提供运营主体、详细地址或产业定位；仅代表已入库快照。
 
 专业布点使用 list_major_offerings / aggregate_major_offerings，来源为教育部政务服务平台同步或控制台 Excel 导入数据，直接入库且无 AI 治理；不可用专业简介或培养方案统计替代。职业分类大典使用 query_occupation_dictionary，支持职业大类、小类、名称组合过滤，返回定义与工作任务。两类数据仅表示已入库覆盖。
 
@@ -30,6 +32,9 @@
 | `find_textbooks` | `GET /open/v1/course-textbooks` | public-business |
 | `get_textbook` | `GET /open/v1/course-textbooks/{profile_id}` | public-business |
 | `discover_data_resources` | `GET /open/v1/data-resources` | public-discovery |
+| `query_ecommerce_demo_bases` | `GET /open/v1/ecommerce-demo-bases` | public-business |
+| `aggregate_ecommerce_demo_bases` | `GET /open/v1/ecommerce-demo-bases/aggregate` | public-business |
+| `get_ecommerce_demo_base` | `GET /open/v1/ecommerce-demo-bases/{base_id}` | public-business |
 | `query_enterprises` | `GET /open/v1/enterprises` | public-business |
 | `get_enterprise` | `GET /open/v1/enterprises/{enterprise_id}` | public-business |
 | `resolve_business_entities` | `POST /open/v1/entity-resolutions` | public-discovery |

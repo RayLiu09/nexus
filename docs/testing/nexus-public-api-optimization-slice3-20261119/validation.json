@@ -1,0 +1,30 @@
+{
+  "api_tests": 75,
+  "skill_tests": 26,
+  "skill_http_calls_final": 56,
+  "skill_http_success_final": 56,
+  "discovered_resource_types": 18,
+  "generated_tools": 58,
+  "python_ast_files": 12,
+  "json_files_validated": 9,
+  "full_group_rows": 115,
+  "full_group_record_count": 312,
+  "unknown_year_record_count": 3,
+  "new_review_links": "passed",
+  "generator_drift": "passed",
+  "skill_format": "passed",
+  "source_sha256": {
+    "nexus-api/nexus_api/api/open_ecommerce_demo_bases.py": "75c142f45ae80b5fac387e11248efe7e280a4ad5b6cf04a8cfbe0ede4c9d066f",
+    "nexus-api/nexus_api/ecommerce_demo_bases.py": "cdda8556de5489f912af02349ca2907728233931dab6bb54a0ee843db9999f60",
+    "nexus-api/nexus_api/api/internal/ecommerce_demo_bases.py": "d1442c515916af374ee996d1a134bde8cc0d4806f71efa62bcde368e47ef28ae",
+    "nexus-api/nexus_api/api/open_discovery.py": "72500c1a6597da4206b7bd306758030d4e5d562d3d2def5fe55b94a12a7f8afd",
+    "nexus-api/nexus_api/main.py": "f7730ea35a88f1821f05257c9af01a5c53d5a15bc21507cdd16ad275e58ba5bf",
+    "nexus-api/nexus_api/public_schemas.py": "8933bbc8fed54240e371305531d4568101722f95d77c3782609b13f641f8ade5",
+    "nexus-api/tests/test_open_ecommerce_demo_bases.py": "487449d08b4f88c97eb6df308db2493a9da9052da5435bfb13c6561c7deac3d9",
+    "nexus-api/tests/test_agent_public_business.py": "417694327c989a4236ffc2c42e6d11d37f7834287c028a78f6dac4c5d911f53e",
+    "nexus-api/tests/test_public_function_tools.py": "b4e332fbc6c72664ec9cccaeef219ced3ba2d560daa27993f984641a5d097496",
+    "scripts/generate_public_function_tools.py": "fc947e7bbf3bc337243d35712db87265e26e0d916ccd6346a866540640b106d1",
+    "skills/nexus-public-api/tests/test_nexus_call.py": "24250843c1054bc810797e68344e158a2c29b8fb81b11c31445fcdf1fd1dacaf",
+    "docs/testing/nexus-public-api-optimization-slice3-20261119/run_base_question_set.py": "c452e1cac1e01c2bb6f21bace919f38d81f53da4e46d25eb7df5bd61f407e46f"
+  }
+}

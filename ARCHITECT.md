@@ -190,6 +190,12 @@ remain ephemeral. Provider failure is a redacted 503 without provider fallback.
   reads share database filters. The Asset Center uses these reads for the
   national batch/chart/map view and provincial list; static province GeoJSON
   ships with the Console and does not contain business facts.
+  API-caller-authenticated `/open/v1/ecommerce-demo-bases` adds independent
+  list/detail/grouped-aggregate reads over the same table. It exposes typed
+  stored facts and safe source links, never raw source JSON or invented
+  asset/ref anchors. Counts are registry records, not deduplicated physical
+  bases; unknown recognition years remain NULL groups. Discovery advertises
+  structured query only. Read audits recheck caller status before returning.
 - Right-size by scale: use minimum viable infrastructure in P0; each simplified capability has a documented upgrade trigger and migration path.
 - `raw_object` is the unified raw retention model for all sources (binary files and serialized JSON packages).
 - Processing pipeline is determined at job creation, not at runtime inference.

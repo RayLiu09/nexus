@@ -439,11 +439,272 @@
   {
     "type": "function",
     "name": "discover_data_resources",
-    "description": "发现资产中心 17 类可见资源及其公开接口、过滤参数、能力与数量。包含教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。",
+    "description": "发现资产中心18类可见资源及其公开接口、过滤参数、能力与数量。含电子商务示范基地、教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。",
     "parameters": {
       "type": "object",
       "properties": {},
       "additionalProperties": false
+    },
+    "strict": false
+  },
+  {
+    "type": "function",
+    "name": "query_ecommerce_demo_bases",
+    "description": "分页查询已入库国家级/省级电子商务示范基地，区别于产业园区。名称、地区代码、认定年和国家批次按AND过滤；省略level查询两级。返回名录事实和可用来源链接，不提供运营主体、详细地址或产业定位，不代表最新全国完整名录。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "national",
+                    "provincial"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "national=国家级，provincial=省级；省略查询两级名录，不跨级去重。",
+              "title": "Level"
+            },
+            "q": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "仅匹配基地名称的字面子串，不推断产业定位或地址。",
+              "title": "Q"
+            },
+            "province_code": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]{6}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "来源省级地区代码精确匹配，不代表基地详细地址。",
+              "title": "Province Code"
+            },
+            "recognized_year": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1900
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "来源认定年份，不是入库年或网页发布时间；缺失年份不匹配。",
+              "title": "Recognized Year"
+            },
+            "batch": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "first",
+                    "second",
+                    "supplement"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "国家批次first/second/supplement；与provincial组合返回422。",
+              "title": "Batch"
+            },
+            "page": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            },
+            "pageSize": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Pagesize"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "strict": false
+  },
+  {
+    "type": "function",
+    "name": "aggregate_ecommerce_demo_bases",
+    "description": "按省级地区代码、认定级别、认定年份或国家批次汇总电子商务示范基地名录。过滤与列表相同，全量分组后分页；保留NULL组、缺失数及来源覆盖。计数单位为名录记录，不跨级或同名去重，不推断全国总量、产业定位或未收录省份不存在基地。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "properties": {
+            "group_by": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "province_code",
+                  "level",
+                  "recognized_year",
+                  "batch_code"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 4,
+              "description": "重复参数，维度不可重复；分组基于全量匹配名录。meta.total是组数，aggregations.matched_total是记录数。",
+              "default": [
+                "province_code",
+                "level",
+                "recognized_year"
+              ],
+              "title": "Group By"
+            },
+            "level": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "national",
+                    "provincial"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "national=国家级，provincial=省级；省略查询两级名录，不跨级去重。",
+              "title": "Level"
+            },
+            "q": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "仅匹配基地名称的字面子串，不推断产业定位或地址。",
+              "title": "Q"
+            },
+            "province_code": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]{6}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "来源省级地区代码精确匹配，不代表基地详细地址。",
+              "title": "Province Code"
+            },
+            "recognized_year": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1900
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "来源认定年份，不是入库年或网页发布时间；缺失年份不匹配。",
+              "title": "Recognized Year"
+            },
+            "batch": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "first",
+                    "second",
+                    "supplement"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "国家批次first/second/supplement；与provincial组合返回422。",
+              "title": "Batch"
+            },
+            "page": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            },
+            "pageSize": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Pagesize"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "strict": false
+  },
+  {
+    "type": "function",
+    "name": "get_ecommerce_demo_base",
+    "description": "按查询结果ID读取单条电子商务示范基地名录及来源文件/JSON定位。原站未开放链接或路径不安全时source_url为空；不返回原始JSON，不抓取网页，不虚构运营主体、详细地址或产业定位。不存在返回404。",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "properties": {
+            "base_id": {
+              "type": "string",
+              "title": "Base Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "base_id"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ]
     },
     "strict": false
   },

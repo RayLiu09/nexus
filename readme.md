@@ -111,8 +111,14 @@ length/truncation fields; full evidence stays available on demand and the defaul
 version is deployed; the skill does not automatically inject it. Embedding
 dependency failures on public search return 503 rather than an unhandled 500;
 the executor discards failed pooled connections without automatic replay.
-The catalog covers all 17 visible resource types, including the read-only
-occupation dictionary and Ministry-synchronized major offerings. Retired
+The catalog contains 58 tools across 16 tags and covers all 18 visible resource
+types, including the read-only occupation dictionary, Ministry-synchronized
+major offerings and ecommerce demonstration bases. The independent base
+list/detail/aggregate tools query `ecommerce_parks`, with record counts,
+missing recognition years and source coverage explicit. They distinguish bases
+from industrial parks and read detailed provenance only when needed; absent
+operator/address/industry-positioning fields stay absent. The new base tools
+require deployment of the corresponding API version. Retired
 major-distribution Pipeline B endpoints are excluded. Market jobs accept `region` on both list and aggregate; teaching standards accept
 `occupation` for source career orientation and expose `career_orientation` evidence.
 Public standard/course reads retain available/current-ref/classification gates

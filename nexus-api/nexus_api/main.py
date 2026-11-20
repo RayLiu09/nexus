@@ -14,6 +14,7 @@ from nexus_api.api.open import router as open_router
 from nexus_api.api.open_business import router as open_business_router
 from nexus_api.api.open_evidence import router as open_evidence_router
 from nexus_api.api.open_discovery import router as open_discovery_router
+from nexus_api.api.open_ecommerce_demo_bases import router as open_ecommerce_demo_bases_router
 from nexus_api.api.open_record_assets import router as open_record_assets_router
 from nexus_api.api.major_offerings import open_router as major_offerings_open_router, business_router as major_offerings_business_router
 from nexus_api.api.occupation_dictionary import business_router as occupation_dictionary_router, open_router as occupation_dictionary_open_router
@@ -250,6 +251,7 @@ def create_app() -> FastAPI:
     app.include_router(open_business_router)
     app.include_router(open_evidence_router)
     app.include_router(open_discovery_router)
+    app.include_router(open_ecommerce_demo_bases_router)
     app.include_router(open_major_profiles_router)
     app.include_router(open_talent_training_plans_router)
     app.include_router(institutional_statistics_router)

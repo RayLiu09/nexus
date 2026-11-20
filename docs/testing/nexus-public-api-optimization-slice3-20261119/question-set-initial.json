@@ -1,0 +1,5733 @@
+{
+  "environment": "New local API over isolated SQLite, real loopback HTTP via original skill executor; lifespan off; no remote deployment",
+  "source": {
+    "kind": "actual_database_readonly_snapshot",
+    "host": "10.100.11.182",
+    "database": "nexus_dev",
+    "transaction_read_only": "on",
+    "captured_at": "2026-11-19T08:35:32.500258+00:00",
+    "columns_excluded": [
+      "source_payload"
+    ],
+    "safe_columns_sha256": "c1f473d9890f4e47e4b60e17bd67a369ac2227fd36096f92f77bbbe381c9d399",
+    "record_count": 312,
+    "level_counts": {
+      "national": 170,
+      "provincial": 142
+    }
+  },
+  "elapsed_seconds": 2.262,
+  "measurements": [
+    {
+      "label": "discovery",
+      "n": 1,
+      "p50_ms": 641.1,
+      "p95_ms": 641.1,
+      "http_bytes": [
+        11714,
+        11714
+      ]
+    },
+    {
+      "label": "q1-national-first5",
+      "n": 10,
+      "p50_ms": 7.699999999999999,
+      "p95_ms": 10.0,
+      "http_bytes": [
+        2051,
+        2052
+      ]
+    },
+    {
+      "label": "q2-chongqing",
+      "n": 10,
+      "p50_ms": 6.35,
+      "p95_ms": 8.5,
+      "http_bytes": [
+        1968,
+        1969
+      ]
+    },
+    {
+      "label": "q3-detail",
+      "n": 1,
+      "p50_ms": 47.1,
+      "p95_ms": 47.1,
+      "http_bytes": [
+        599,
+        599
+      ]
+    },
+    {
+      "label": "q4-groups",
+      "n": 10,
+      "p50_ms": 8.100000000000001,
+      "p95_ms": 11.5,
+      "http_bytes": [
+        12663,
+        12664
+      ]
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "n": 10,
+      "p50_ms": 54.35,
+      "p95_ms": 65.1,
+      "http_bytes": [
+        1219,
+        1220
+      ]
+    },
+    {
+      "label": "q5-chongqing-names",
+      "n": 1,
+      "p50_ms": 6.8,
+      "p95_ms": 6.8,
+      "http_bytes": [
+        1974,
+        1974
+      ]
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "n": 10,
+      "p50_ms": 50.1,
+      "p95_ms": 59.3,
+      "http_bytes": [
+        1219,
+        1220
+      ]
+    },
+    {
+      "label": "q5-zhejiang-names",
+      "n": 1,
+      "p50_ms": 7.7,
+      "p95_ms": 7.7,
+      "http_bytes": [
+        3837,
+        3837
+      ]
+    }
+  ],
+  "calls": [
+    {
+      "label": "discovery",
+      "tool": "discover_data_resources",
+      "arguments": {},
+      "trace_id": "slice3-discovery-1",
+      "status": 200,
+      "elapsed_ms": 641.1,
+      "http_bytes": 11714,
+      "answer_bytes": 11739,
+      "answer_chars": 11561
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-2",
+      "status": 200,
+      "elapsed_ms": 9.8,
+      "http_bytes": 2051,
+      "answer_bytes": 2733,
+      "answer_chars": 2501
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-3",
+      "status": 200,
+      "elapsed_ms": 7.8,
+      "http_bytes": 1968,
+      "answer_bytes": 2650,
+      "answer_chars": 2478
+    },
+    {
+      "label": "q3-detail",
+      "tool": "get_ecommerce_demo_base",
+      "arguments": {
+        "path": {
+          "base_id": "a722a60f-7639-5d9a-b666-8cd46f0b9e99"
+        }
+      },
+      "trace_id": "slice3-q3-detail-4",
+      "status": 200,
+      "elapsed_ms": 47.1,
+      "http_bytes": 599,
+      "answer_bytes": 763,
+      "answer_chars": 673
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-5",
+      "status": 200,
+      "elapsed_ms": 11.5,
+      "http_bytes": 12663,
+      "answer_bytes": 11301,
+      "answer_chars": 11261
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-6",
+      "status": 200,
+      "elapsed_ms": 57.0,
+      "http_bytes": 1219,
+      "answer_bytes": 1826,
+      "answer_chars": 1786
+    },
+    {
+      "label": "q5-chongqing-names",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-names-7",
+      "status": 200,
+      "elapsed_ms": 6.8,
+      "http_bytes": 1974,
+      "answer_bytes": 2656,
+      "answer_chars": 2484
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-8",
+      "status": 200,
+      "elapsed_ms": 52.8,
+      "http_bytes": 1219,
+      "answer_bytes": 1826,
+      "answer_chars": 1786
+    },
+    {
+      "label": "q5-zhejiang-names",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-names-9",
+      "status": 200,
+      "elapsed_ms": 7.7,
+      "http_bytes": 3837,
+      "answer_bytes": 5129,
+      "answer_chars": 4776
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-10",
+      "status": 200,
+      "elapsed_ms": 6.7,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-11",
+      "status": 200,
+      "elapsed_ms": 8.0,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-12",
+      "status": 200,
+      "elapsed_ms": 9.9,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-13",
+      "status": 200,
+      "elapsed_ms": 65.1,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-14",
+      "status": 200,
+      "elapsed_ms": 49.9,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-15",
+      "status": 200,
+      "elapsed_ms": 7.1,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-16",
+      "status": 200,
+      "elapsed_ms": 6.7,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-17",
+      "status": 200,
+      "elapsed_ms": 8.4,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-18",
+      "status": 200,
+      "elapsed_ms": 54.9,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-19",
+      "status": 200,
+      "elapsed_ms": 49.8,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-20",
+      "status": 200,
+      "elapsed_ms": 7.6,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-21",
+      "status": 200,
+      "elapsed_ms": 8.5,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-22",
+      "status": 200,
+      "elapsed_ms": 8.3,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-23",
+      "status": 200,
+      "elapsed_ms": 54.2,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-24",
+      "status": 200,
+      "elapsed_ms": 59.0,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-25",
+      "status": 200,
+      "elapsed_ms": 7.6,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-26",
+      "status": 200,
+      "elapsed_ms": 5.9,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-27",
+      "status": 200,
+      "elapsed_ms": 7.3,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-28",
+      "status": 200,
+      "elapsed_ms": 47.4,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-29",
+      "status": 200,
+      "elapsed_ms": 50.1,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-30",
+      "status": 200,
+      "elapsed_ms": 9.4,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-31",
+      "status": 200,
+      "elapsed_ms": 5.9,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-32",
+      "status": 200,
+      "elapsed_ms": 7.1,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-33",
+      "status": 200,
+      "elapsed_ms": 55.8,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-34",
+      "status": 200,
+      "elapsed_ms": 59.3,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-35",
+      "status": 200,
+      "elapsed_ms": 9.9,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-36",
+      "status": 200,
+      "elapsed_ms": 6.0,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-37",
+      "status": 200,
+      "elapsed_ms": 7.4,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-38",
+      "status": 200,
+      "elapsed_ms": 54.5,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-39",
+      "status": 200,
+      "elapsed_ms": 49.4,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-40",
+      "status": 200,
+      "elapsed_ms": 10.0,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-41",
+      "status": 200,
+      "elapsed_ms": 6.0,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-42",
+      "status": 200,
+      "elapsed_ms": 7.9,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-43",
+      "status": 200,
+      "elapsed_ms": 54.2,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-44",
+      "status": 200,
+      "elapsed_ms": 59.3,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-45",
+      "status": 200,
+      "elapsed_ms": 6.7,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-46",
+      "status": 200,
+      "elapsed_ms": 5.9,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-47",
+      "status": 200,
+      "elapsed_ms": 7.2,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-48",
+      "status": 200,
+      "elapsed_ms": 48.3,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-49",
+      "status": 200,
+      "elapsed_ms": 50.1,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q1-national-first5",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "level": "national",
+          "pageSize": 5
+        }
+      },
+      "trace_id": "slice3-q1-national-first5-50",
+      "status": 200,
+      "elapsed_ms": 7.8,
+      "http_bytes": 2052,
+      "answer_bytes": 2734,
+      "answer_chars": 2502
+    },
+    {
+      "label": "q2-chongqing",
+      "tool": "query_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q2-chongqing-51",
+      "status": 200,
+      "elapsed_ms": 7.1,
+      "http_bytes": 1969,
+      "answer_bytes": 2651,
+      "answer_chars": 2479
+    },
+    {
+      "label": "q4-groups",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q4-groups-52",
+      "status": 200,
+      "elapsed_ms": 8.8,
+      "http_bytes": 12664,
+      "answer_bytes": 11302,
+      "answer_chars": 11262
+    },
+    {
+      "label": "q5-chongqing-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "500000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-chongqing-structure-53",
+      "status": 200,
+      "elapsed_ms": 54.2,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    },
+    {
+      "label": "q5-zhejiang-structure",
+      "tool": "aggregate_ecommerce_demo_bases",
+      "arguments": {
+        "query": {
+          "province_code": "330000",
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "pageSize": 200
+        }
+      },
+      "trace_id": "slice3-q5-zhejiang-structure-54",
+      "status": 200,
+      "elapsed_ms": 49.8,
+      "http_bytes": 1220,
+      "answer_bytes": 1827,
+      "answer_chars": 1787
+    }
+  ],
+  "first_round": {
+    "discovery": {
+      "raw": {
+        "data": [
+          {
+            "code": "industry_policy",
+            "name": "产教政策",
+            "classification": "industry_policy",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [
+              "industry_research_kb"
+            ],
+            "retrieval_capabilities": [
+              "catalog",
+              "semantic_search",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "industry_report",
+            "name": "产业报告",
+            "classification": "industry_report",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [
+              "industry_research_kb"
+            ],
+            "retrieval_capabilities": [
+              "catalog",
+              "semantic_search",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "sector_report",
+            "name": "行业报告",
+            "classification": "sector_report",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [
+              "industry_research_kb"
+            ],
+            "retrieval_capabilities": [
+              "catalog",
+              "semantic_search",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "industry_regulation_standard",
+            "name": "行业法规标准",
+            "classification": "industry_regulation_standard",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "major_profile",
+            "name": "专业简介",
+            "classification": "major_profile",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/major-profile-documents",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "talent_demand_report",
+            "name": "人才需求调研",
+            "classification": "talent_demand_report",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "talent_training_plan",
+            "name": "人才培养方案",
+            "classification": "talent_training_plan",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "teaching_case",
+            "name": "教学案例",
+            "classification": "teaching_case",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "major_distribution",
+            "name": "专业布点数据",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/major-offerings",
+            "capabilities": [
+              "list",
+              "aggregate"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "year_school_major_duration_unique",
+              "api_sync_and_excel_import",
+              "ingested_coverage_only"
+            ],
+            "filter_parameters": [
+              "year",
+              "province_name",
+              "province_code",
+              "major_name",
+              "major_code",
+              "school_name",
+              "school_code",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "evidence_bundle"
+            ]
+          },
+          {
+            "code": "occupational_ability_analysis",
+            "name": "职业能力分析",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/record-assets/ability-analyses",
+            "capabilities": [
+              "list",
+              "detail",
+              "tasks",
+              "items",
+              "relations",
+              "graphs"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "independent_domain_records"
+            ],
+            "filter_parameters": [
+              "normalized_ref_id",
+              "major_code",
+              "profile_id",
+              "major_name",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "graph"
+            ]
+          },
+          {
+            "code": "market_job",
+            "name": "市场岗位",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/market-jobs",
+            "capabilities": [
+              "list",
+              "detail",
+              "aggregate"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "raw_jobs_not_legacy_job_demand_records",
+              "collection_time_not_publication_time",
+              "salary_is_source_text"
+            ],
+            "filter_parameters": [
+              "q",
+              "job_title",
+              "company_name",
+              "industry",
+              "education",
+              "experience",
+              "region",
+              "collected_from",
+              "collected_to",
+              "received_to",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "evidence_bundle"
+            ]
+          },
+          {
+            "code": "industrial_park",
+            "name": "产业园区",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/industrial-parks",
+            "capabilities": [
+              "list",
+              "detail",
+              "enterprises"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "ingested_coverage_only"
+            ],
+            "filter_parameters": [
+              "q",
+              "industry",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "evidence_bundle"
+            ]
+          },
+          {
+            "code": "enterprise",
+            "name": "企业数据",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/enterprises",
+            "capabilities": [
+              "list",
+              "detail"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "no_inferred_cooperation_relationships"
+            ],
+            "filter_parameters": [
+              "q",
+              "business_scope",
+              "park_id",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "evidence_bundle"
+            ]
+          },
+          {
+            "code": "ecommerce_demo_base",
+            "name": "电商示范基地",
+            "classification": null,
+            "source_type": "record",
+            "count": 312,
+            "count_unit": "records",
+            "endpoint": "/open/v1/ecommerce-demo-bases",
+            "capabilities": [
+              "list",
+              "detail",
+              "aggregate"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "ingested_snapshot_only",
+              "registry_records_not_unique_physical_bases",
+              "not_industrial_parks",
+              "no_operator_address_or_industry_positioning",
+              "source_link_may_be_unavailable"
+            ],
+            "filter_parameters": [
+              "level",
+              "q",
+              "province_code",
+              "recognized_year",
+              "batch",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query"
+            ]
+          },
+          {
+            "code": "occupation_dictionary",
+            "name": "职业分类大典",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/occupation-dictionary",
+            "capabilities": [
+              "list"
+            ],
+            "visibility": "read_only_reference_data",
+            "limitations": [
+              "edition_2022",
+              "imported_verified_entries_only",
+              "no_ai_governance",
+              "no_asset_version_or_normalized_ref"
+            ],
+            "filter_parameters": [
+              "major_group",
+              "minor_group",
+              "occupation_name",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query"
+            ]
+          },
+          {
+            "code": "teaching_standard",
+            "name": "专业教学标准",
+            "classification": "teaching_standard",
+            "source_type": "projection",
+            "count": 0,
+            "count_unit": "standards",
+            "endpoint": "/open/v1/teaching-standard-libraries",
+            "capabilities": [
+              "list",
+              "detail",
+              "courses",
+              "existing_graph"
+            ],
+            "visibility": "available_current_document",
+            "limitations": [
+              "library_status_does_not_gate_reads",
+              "no_implicit_activation"
+            ],
+            "filter_parameters": [
+              "major_code",
+              "major_name",
+              "education_level",
+              "occupation",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "graph"
+            ]
+          },
+          {
+            "code": "standard_course",
+            "name": "标准课程库",
+            "classification": "teaching_standard",
+            "source_type": "projection",
+            "count": 0,
+            "count_unit": "courses",
+            "endpoint": "/open/v1/teaching-standard-courses",
+            "capabilities": [
+              "list",
+              "detail",
+              "evidence"
+            ],
+            "visibility": "available_current_document",
+            "limitations": [
+              "hours_are_suggested",
+              "tags_are_derived"
+            ],
+            "filter_parameters": [
+              "library_id",
+              "course_name",
+              "major_code",
+              "major_name",
+              "education_level",
+              "course_type",
+              "tag",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query"
+            ]
+          },
+          {
+            "code": "course_textbook",
+            "name": "课程教材",
+            "classification": "course_textbook",
+            "source_type": "projection",
+            "count": 0,
+            "count_unit": "textbooks",
+            "endpoint": "/open/v1/course-textbooks",
+            "capabilities": [
+              "list",
+              "detail",
+              "existing_knowledge_outline",
+              "existing_task_outline",
+              "node_context",
+              "scoped_search"
+            ],
+            "visibility": "available_current_classified_document",
+            "limitations": [
+              "outline_reads_do_not_build"
+            ],
+            "filter_parameters": [
+              "title",
+              "textbook_type",
+              "publisher",
+              "chief_editor",
+              "publication_year",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [
+              "course_textbook"
+            ],
+            "retrieval_capabilities": [
+              "catalog",
+              "semantic_search",
+              "evidence_bundle",
+              "content",
+              "sections",
+              "outline"
+            ]
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-discovery-1",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "answer": {
+        "data": [
+          {
+            "code": "industry_policy",
+            "name": "产教政策",
+            "classification": "industry_policy",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [
+              "industry_research_kb"
+            ],
+            "retrieval_capabilities": [
+              "catalog",
+              "semantic_search",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "industry_report",
+            "name": "产业报告",
+            "classification": "industry_report",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [
+              "industry_research_kb"
+            ],
+            "retrieval_capabilities": [
+              "catalog",
+              "semantic_search",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "sector_report",
+            "name": "行业报告",
+            "classification": "sector_report",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [
+              "industry_research_kb"
+            ],
+            "retrieval_capabilities": [
+              "catalog",
+              "semantic_search",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "industry_regulation_standard",
+            "name": "行业法规标准",
+            "classification": "industry_regulation_standard",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "major_profile",
+            "name": "专业简介",
+            "classification": "major_profile",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/major-profile-documents",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "talent_demand_report",
+            "name": "人才需求调研",
+            "classification": "talent_demand_report",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "talent_training_plan",
+            "name": "人才培养方案",
+            "classification": "talent_training_plan",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "teaching_case",
+            "name": "教学案例",
+            "classification": "teaching_case",
+            "source_type": "document",
+            "count": 0,
+            "count_unit": "documents",
+            "endpoint": "/open/v1/assets",
+            "capabilities": [
+              "list",
+              "detail",
+              "content",
+              "chunks",
+              "sections",
+              "scoped_search"
+            ],
+            "visibility": "available_current_generated_ref",
+            "limitations": [
+              "counts_cover_ingested_documents_only",
+              "organization_filter_is_P0_noop"
+            ],
+            "filter_parameters": [
+              "domain",
+              "tag_type",
+              "tags",
+              "is_exact_matched",
+              "tags_match",
+              "page",
+              "pageSize",
+              "title",
+              "resource_type",
+              "domains",
+              "topic",
+              "region",
+              "industry",
+              "major_code",
+              "major_name",
+              "institution_name",
+              "education_level",
+              "published_from",
+              "published_to"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "evidence_bundle",
+              "content",
+              "sections"
+            ]
+          },
+          {
+            "code": "major_distribution",
+            "name": "专业布点数据",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/major-offerings",
+            "capabilities": [
+              "list",
+              "aggregate"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "year_school_major_duration_unique",
+              "api_sync_and_excel_import",
+              "ingested_coverage_only"
+            ],
+            "filter_parameters": [
+              "year",
+              "province_name",
+              "province_code",
+              "major_name",
+              "major_code",
+              "school_name",
+              "school_code",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "evidence_bundle"
+            ]
+          },
+          {
+            "code": "occupational_ability_analysis",
+            "name": "职业能力分析",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/record-assets/ability-analyses",
+            "capabilities": [
+              "list",
+              "detail",
+              "tasks",
+              "items",
+              "relations",
+              "graphs"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "independent_domain_records"
+            ],
+            "filter_parameters": [
+              "normalized_ref_id",
+              "major_code",
+              "profile_id",
+              "major_name",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "graph"
+            ]
+          },
+          {
+            "code": "market_job",
+            "name": "市场岗位",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/market-jobs",
+            "capabilities": [
+              "list",
+              "detail",
+              "aggregate"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "raw_jobs_not_legacy_job_demand_records",
+              "collection_time_not_publication_time",
+              "salary_is_source_text"
+            ],
+            "filter_parameters": [
+              "q",
+              "job_title",
+              "company_name",
+              "industry",
+              "education",
+              "experience",
+              "region",
+              "collected_from",
+              "collected_to",
+              "received_to",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "evidence_bundle"
+            ]
+          },
+          {
+            "code": "industrial_park",
+            "name": "产业园区",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/industrial-parks",
+            "capabilities": [
+              "list",
+              "detail",
+              "enterprises"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "ingested_coverage_only"
+            ],
+            "filter_parameters": [
+              "q",
+              "industry",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "evidence_bundle"
+            ]
+          },
+          {
+            "code": "enterprise",
+            "name": "企业数据",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/enterprises",
+            "capabilities": [
+              "list",
+              "detail"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "no_inferred_cooperation_relationships"
+            ],
+            "filter_parameters": [
+              "q",
+              "business_scope",
+              "park_id",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "evidence_bundle"
+            ]
+          },
+          {
+            "code": "ecommerce_demo_base",
+            "name": "电商示范基地",
+            "classification": null,
+            "source_type": "record",
+            "count": 312,
+            "count_unit": "records",
+            "endpoint": "/open/v1/ecommerce-demo-bases",
+            "capabilities": [
+              "list",
+              "detail",
+              "aggregate"
+            ],
+            "visibility": "independent_domain_records",
+            "limitations": [
+              "ingested_snapshot_only",
+              "registry_records_not_unique_physical_bases",
+              "not_industrial_parks",
+              "no_operator_address_or_industry_positioning",
+              "source_link_may_be_unavailable"
+            ],
+            "filter_parameters": [
+              "level",
+              "q",
+              "province_code",
+              "recognized_year",
+              "batch",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query"
+            ]
+          },
+          {
+            "code": "occupation_dictionary",
+            "name": "职业分类大典",
+            "classification": null,
+            "source_type": "record",
+            "count": 0,
+            "count_unit": "records",
+            "endpoint": "/open/v1/occupation-dictionary",
+            "capabilities": [
+              "list"
+            ],
+            "visibility": "read_only_reference_data",
+            "limitations": [
+              "edition_2022",
+              "imported_verified_entries_only",
+              "no_ai_governance",
+              "no_asset_version_or_normalized_ref"
+            ],
+            "filter_parameters": [
+              "major_group",
+              "minor_group",
+              "occupation_name",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query"
+            ]
+          },
+          {
+            "code": "teaching_standard",
+            "name": "专业教学标准",
+            "classification": "teaching_standard",
+            "source_type": "projection",
+            "count": 0,
+            "count_unit": "standards",
+            "endpoint": "/open/v1/teaching-standard-libraries",
+            "capabilities": [
+              "list",
+              "detail",
+              "courses",
+              "existing_graph"
+            ],
+            "visibility": "available_current_document",
+            "limitations": [
+              "library_status_does_not_gate_reads",
+              "no_implicit_activation"
+            ],
+            "filter_parameters": [
+              "major_code",
+              "major_name",
+              "education_level",
+              "occupation",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query",
+              "graph"
+            ]
+          },
+          {
+            "code": "standard_course",
+            "name": "标准课程库",
+            "classification": "teaching_standard",
+            "source_type": "projection",
+            "count": 0,
+            "count_unit": "courses",
+            "endpoint": "/open/v1/teaching-standard-courses",
+            "capabilities": [
+              "list",
+              "detail",
+              "evidence"
+            ],
+            "visibility": "available_current_document",
+            "limitations": [
+              "hours_are_suggested",
+              "tags_are_derived"
+            ],
+            "filter_parameters": [
+              "library_id",
+              "course_name",
+              "major_code",
+              "major_name",
+              "education_level",
+              "course_type",
+              "tag",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [],
+            "retrieval_capabilities": [
+              "catalog",
+              "structured_query"
+            ]
+          },
+          {
+            "code": "course_textbook",
+            "name": "课程教材",
+            "classification": "course_textbook",
+            "source_type": "projection",
+            "count": 0,
+            "count_unit": "textbooks",
+            "endpoint": "/open/v1/course-textbooks",
+            "capabilities": [
+              "list",
+              "detail",
+              "existing_knowledge_outline",
+              "existing_task_outline",
+              "node_context",
+              "scoped_search"
+            ],
+            "visibility": "available_current_classified_document",
+            "limitations": [
+              "outline_reads_do_not_build"
+            ],
+            "filter_parameters": [
+              "title",
+              "textbook_type",
+              "publisher",
+              "chief_editor",
+              "publication_year",
+              "page",
+              "pageSize"
+            ],
+            "knowledge_types": [
+              "course_textbook"
+            ],
+            "retrieval_capabilities": [
+              "catalog",
+              "semantic_search",
+              "evidence_bundle",
+              "content",
+              "sections",
+              "outline"
+            ]
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-discovery-1",
+          "page": null,
+          "page_size": null,
+          "total": null
+        },
+        "source_kind": "platform"
+      }
+    },
+    "q1-national-first5": {
+      "raw": {
+        "data": [
+          {
+            "id": "a722a60f-7639-5d9a-b666-8cd46f0b9e99",
+            "level": "national",
+            "title": "石景山区国家电子商务示范基地（中关村科技园区石景山园）",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 1,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "55b47535-d52c-568e-a7e0-fb84877bb6ae",
+            "level": "national",
+            "title": "中关村科技园区丰台园",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 2,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "49e5a080-45fb-52a2-9258-1ac1abcf10be",
+            "level": "national",
+            "title": "海淀区中关村软件园",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 3,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "22db57d2-7969-52c3-9b8e-b52cab472b74",
+            "level": "national",
+            "title": "北京电子商务中心区（大兴区暨北京经济技术开发区）",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 4,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "f2e559ef-0988-5751-acbd-62a37543e662",
+            "level": "national",
+            "title": "北京市通州商务园",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 5,
+            "source_link_enabled": false,
+            "source_url": null
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q1-national-first5-2",
+          "page": 1,
+          "page_size": 5,
+          "total": 170
+        },
+        "aggregations": null
+      },
+      "answer": {
+        "data": [
+          {
+            "id": "a722a60f-7639-5d9a-b666-8cd46f0b9e99",
+            "level": "national",
+            "title": "石景山区国家电子商务示范基地（中关村科技园区石景山园）",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 1,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "55b47535-d52c-568e-a7e0-fb84877bb6ae",
+            "level": "national",
+            "title": "中关村科技园区丰台园",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 2,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "49e5a080-45fb-52a2-9258-1ac1abcf10be",
+            "level": "national",
+            "title": "海淀区中关村软件园",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 3,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "22db57d2-7969-52c3-9b8e-b52cab472b74",
+            "level": "national",
+            "title": "北京电子商务中心区（大兴区暨北京经济技术开发区）",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 4,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "f2e559ef-0988-5751-acbd-62a37543e662",
+            "level": "national",
+            "title": "北京市通州商务园",
+            "province_code": "110000",
+            "province_name": "北京市",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 5,
+            "source_link_enabled": false,
+            "source_url": null
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q1-national-first5-2",
+          "page": 1,
+          "page_size": 5,
+          "total": 170
+        },
+        "aggregations": null,
+        "source_kind": "platform"
+      }
+    },
+    "q2-chongqing": {
+      "raw": {
+        "data": [
+          {
+            "id": "47826658-8eaa-539a-b74e-aeb6d2cf9371",
+            "level": "national",
+            "title": "重庆公路物流基地",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2023年8月",
+            "recognized_year": 2023,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 1,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "44e418c7-15e1-5272-90fc-05b3ab6367c5",
+            "level": "national",
+            "title": "大足区电商产业园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2022年8月",
+            "recognized_year": 2022,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 2,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "eabf9be7-7d97-5be5-8e58-0c7fc3f16b60",
+            "level": "national",
+            "title": "秀山（武陵）现代物流园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2020年9月",
+            "recognized_year": 2020,
+            "recognized_month": 9,
+            "source_publish_at": null,
+            "source_order": 3,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "c546ae92-f929-514e-856c-4b1035dbe7d3",
+            "level": "national",
+            "title": "重庆网商产业园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 4,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "76378deb-f1cc-5339-8c2d-6c22fb103e31",
+            "level": "national",
+            "title": "重庆市渝中区国家电子商务示范基地",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 5,
+            "source_link_enabled": false,
+            "source_url": null
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q2-chongqing-3",
+          "page": 1,
+          "page_size": 200,
+          "total": 5
+        },
+        "aggregations": null
+      },
+      "answer": {
+        "data": [
+          {
+            "id": "47826658-8eaa-539a-b74e-aeb6d2cf9371",
+            "level": "national",
+            "title": "重庆公路物流基地",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2023年8月",
+            "recognized_year": 2023,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 1,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "44e418c7-15e1-5272-90fc-05b3ab6367c5",
+            "level": "national",
+            "title": "大足区电商产业园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2022年8月",
+            "recognized_year": 2022,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 2,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "eabf9be7-7d97-5be5-8e58-0c7fc3f16b60",
+            "level": "national",
+            "title": "秀山（武陵）现代物流园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2020年9月",
+            "recognized_year": 2020,
+            "recognized_month": 9,
+            "source_publish_at": null,
+            "source_order": 3,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "c546ae92-f929-514e-856c-4b1035dbe7d3",
+            "level": "national",
+            "title": "重庆网商产业园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 4,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "76378deb-f1cc-5339-8c2d-6c22fb103e31",
+            "level": "national",
+            "title": "重庆市渝中区国家电子商务示范基地",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 5,
+            "source_link_enabled": false,
+            "source_url": null
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q2-chongqing-3",
+          "page": 1,
+          "page_size": 200,
+          "total": 5
+        },
+        "aggregations": null,
+        "source_kind": "platform"
+      }
+    },
+    "q3-detail": {
+      "raw": {
+        "data": {
+          "id": "a722a60f-7639-5d9a-b666-8cd46f0b9e99",
+          "level": "national",
+          "title": "石景山区国家电子商务示范基地（中关村科技园区石景山园）",
+          "province_code": "110000",
+          "province_name": "北京市",
+          "batch_code": "second",
+          "batch_name": "第二批",
+          "recognized_period": "2015年7月",
+          "recognized_year": 2015,
+          "recognized_month": 7,
+          "source_publish_at": null,
+          "source_order": 1,
+          "source_link_enabled": false,
+          "source_url": null,
+          "source_file": "国家电子商务示范基地.json",
+          "source_locator": "/0/datalist/0"
+        },
+        "meta": {
+          "trace_id": "slice3-q3-detail-4",
+          "page": null,
+          "page_size": null,
+          "total": null
+        }
+      },
+      "answer": {
+        "data": {
+          "id": "a722a60f-7639-5d9a-b666-8cd46f0b9e99",
+          "level": "national",
+          "title": "石景山区国家电子商务示范基地（中关村科技园区石景山园）",
+          "province_code": "110000",
+          "province_name": "北京市",
+          "batch_code": "second",
+          "batch_name": "第二批",
+          "recognized_period": "2015年7月",
+          "recognized_year": 2015,
+          "recognized_month": 7,
+          "source_publish_at": null,
+          "source_order": 1,
+          "source_link_enabled": false,
+          "source_url": null,
+          "source_file": "国家电子商务示范基地.json",
+          "source_locator": "/0/datalist/0"
+        },
+        "meta": {
+          "trace_id": "slice3-q3-detail-4",
+          "page": null,
+          "page_size": null,
+          "total": null
+        },
+        "source_kind": "platform"
+      }
+    },
+    "q4-groups": {
+      "raw": {
+        "data": [
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "provincial",
+              "recognized_year": 2019
+            },
+            "record_count": 79
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "provincial",
+              "recognized_year": 2016
+            },
+            "record_count": 23
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "provincial",
+              "recognized_year": 2020
+            },
+            "record_count": 18
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "provincial",
+              "recognized_year": 2014
+            },
+            "record_count": 10
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 5
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 5
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 5
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 4
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 4
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "provincial",
+              "recognized_year": 2019
+            },
+            "record_count": 4
+          },
+          {
+            "dimensions": {
+              "province_code": "110000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "150000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "210000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "230000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "provincial",
+              "recognized_year": 2017
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "430000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "510000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "110000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "120000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "310000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "310000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "360000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "360000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "provincial",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "430000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "450000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "510000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "610000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "620000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "620000",
+              "level": "provincial",
+              "recognized_year": null
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "650000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "650000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "120000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "120000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "130000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "130000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "130000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "140000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "140000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "140000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "150000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "150000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "210000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "210000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "220000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "220000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "220000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "230000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "230000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "230000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "310000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "360000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "360000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "430000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "450000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "450000",
+              "level": "provincial",
+              "recognized_year": null
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "460000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "500000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "500000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "500000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "500000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "500000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "510000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "510000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "520000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "520000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "530000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "530000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "610000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "610000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "610000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "620000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "630000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "640000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "650000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q4-groups-5",
+          "page": 1,
+          "page_size": 200,
+          "total": 115
+        },
+        "aggregations": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "matched_total": 312,
+          "missing_counts": {
+            "province_code": 0,
+            "level": 0,
+            "recognized_year": 3
+          },
+          "coverage": {
+            "kind": "database_snapshot",
+            "unit": "registry_records",
+            "deduplication_key": "ecommerce_parks.id",
+            "imported_total": 312,
+            "source_site": "https://dzswgf.mofcom.gov.cn",
+            "source_files": [
+              {
+                "level": "national",
+                "filename": "国家电子商务示范基地.json",
+                "record_count": 170,
+                "province_count": 30,
+                "imported_at": "2026-10-30T01:42:01.779784"
+              },
+              {
+                "level": "provincial",
+                "filename": "省级电子商务示范基地.json",
+                "record_count": 142,
+                "province_count": 6,
+                "imported_at": "2026-10-30T01:42:01.819164"
+              }
+            ],
+            "unavailable_fields": [
+              "operator",
+              "detailed_address",
+              "industry_positioning"
+            ],
+            "limitations": [
+              "ingested_snapshot_only_not_current_national_registry",
+              "cross_level_or_same_name_records_not_merged",
+              "uncollected_provinces_do_not_imply_no_bases",
+              "imported_at_is_not_source_publication_time"
+            ]
+          }
+        }
+      },
+      "answer": {
+        "data": [
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "provincial",
+              "recognized_year": 2019
+            },
+            "record_count": 79
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "provincial",
+              "recognized_year": 2016
+            },
+            "record_count": 23
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "provincial",
+              "recognized_year": 2020
+            },
+            "record_count": 18
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "provincial",
+              "recognized_year": 2014
+            },
+            "record_count": 10
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 5
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 5
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 5
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 4
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 4
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "provincial",
+              "recognized_year": 2019
+            },
+            "record_count": 4
+          },
+          {
+            "dimensions": {
+              "province_code": "110000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "150000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "210000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "230000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "provincial",
+              "recognized_year": 2017
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "430000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "510000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "province_code": "110000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "120000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "310000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "310000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "320000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "360000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "360000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "provincial",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "430000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "450000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "510000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "610000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "620000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "620000",
+              "level": "provincial",
+              "recognized_year": null
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "650000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "650000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 2
+          },
+          {
+            "dimensions": {
+              "province_code": "120000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "120000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "130000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "130000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "130000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "140000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "140000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "140000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "150000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "150000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "210000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "210000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "220000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "220000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "220000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "230000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "230000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "230000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "310000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "330000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "340000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "350000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "360000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "360000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "370000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "410000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2022
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "420000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "430000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2021
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "440000",
+              "level": "national",
+              "recognized_year": 2023
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "450000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "450000",
+              "level": "provincial",
+              "recognized_year": null
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "460000",
+              "level": "national",
+              "recognized_year": 2019
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "500000",
+              "level": "national",
+              "recognized_year": 2012
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "500000",
+              "level": "national",
+              "recognized_year": 2015
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "province_code": "500000",
+              "level": "national",
+              "recognized_year": 2020
+            },
+            "record_count": 1
+          }
+        ],
+        "data_returned_count": 100,
+        "data_total_count": 115,
+        "data_truncated": true,
+        "meta": {
+          "trace_id": "slice3-q4-groups-5",
+          "page": 1,
+          "page_size": 200,
+          "total": 115
+        },
+        "aggregations": {
+          "group_by": [
+            "province_code",
+            "level",
+            "recognized_year"
+          ],
+          "matched_total": 312,
+          "missing_counts": {
+            "province_code": 0,
+            "level": 0,
+            "recognized_year": 3
+          },
+          "coverage": {
+            "kind": "database_snapshot",
+            "unit": "registry_records",
+            "deduplication_key": "ecommerce_parks.id",
+            "imported_total": 312,
+            "source_site": "https://dzswgf.mofcom.gov.cn",
+            "source_files": [
+              {
+                "level": "national",
+                "filename": "国家电子商务示范基地.json",
+                "record_count": 170,
+                "province_count": 30,
+                "imported_at": "2026-10-30T01:42:01.779784"
+              },
+              {
+                "level": "provincial",
+                "filename": "省级电子商务示范基地.json",
+                "record_count": 142,
+                "province_count": 6,
+                "imported_at": "2026-10-30T01:42:01.819164"
+              }
+            ],
+            "unavailable_fields": [
+              "operator",
+              "detailed_address",
+              "industry_positioning"
+            ],
+            "limitations": [
+              "ingested_snapshot_only_not_current_national_registry",
+              "cross_level_or_same_name_records_not_merged",
+              "uncollected_provinces_do_not_imply_no_bases",
+              "imported_at_is_not_source_publication_time"
+            ]
+          }
+        },
+        "source_kind": "platform",
+        "truncated_by_output_budget": true,
+        "original_chars": 20331
+      }
+    },
+    "q5-chongqing-structure": {
+      "raw": {
+        "data": [
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "supplement"
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "first"
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "second"
+            },
+            "record_count": 1
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q5-chongqing-structure-6",
+          "page": 1,
+          "page_size": 200,
+          "total": 3
+        },
+        "aggregations": {
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "matched_total": 5,
+          "missing_counts": {
+            "level": 0,
+            "batch_code": 0
+          },
+          "coverage": {
+            "kind": "database_snapshot",
+            "unit": "registry_records",
+            "deduplication_key": "ecommerce_parks.id",
+            "imported_total": 312,
+            "source_site": "https://dzswgf.mofcom.gov.cn",
+            "source_files": [
+              {
+                "level": "national",
+                "filename": "国家电子商务示范基地.json",
+                "record_count": 170,
+                "province_count": 30,
+                "imported_at": "2026-10-30T01:42:01.779784"
+              },
+              {
+                "level": "provincial",
+                "filename": "省级电子商务示范基地.json",
+                "record_count": 142,
+                "province_count": 6,
+                "imported_at": "2026-10-30T01:42:01.819164"
+              }
+            ],
+            "unavailable_fields": [
+              "operator",
+              "detailed_address",
+              "industry_positioning"
+            ],
+            "limitations": [
+              "ingested_snapshot_only_not_current_national_registry",
+              "cross_level_or_same_name_records_not_merged",
+              "uncollected_provinces_do_not_imply_no_bases",
+              "imported_at_is_not_source_publication_time"
+            ]
+          }
+        }
+      },
+      "answer": {
+        "data": [
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "supplement"
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "first"
+            },
+            "record_count": 1
+          },
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "second"
+            },
+            "record_count": 1
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q5-chongqing-structure-6",
+          "page": 1,
+          "page_size": 200,
+          "total": 3
+        },
+        "aggregations": {
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "matched_total": 5,
+          "missing_counts": {
+            "level": 0,
+            "batch_code": 0
+          },
+          "coverage": {
+            "kind": "database_snapshot",
+            "unit": "registry_records",
+            "deduplication_key": "ecommerce_parks.id",
+            "imported_total": 312,
+            "source_site": "https://dzswgf.mofcom.gov.cn",
+            "source_files": [
+              {
+                "level": "national",
+                "filename": "国家电子商务示范基地.json",
+                "record_count": 170,
+                "province_count": 30,
+                "imported_at": "2026-10-30T01:42:01.779784"
+              },
+              {
+                "level": "provincial",
+                "filename": "省级电子商务示范基地.json",
+                "record_count": 142,
+                "province_count": 6,
+                "imported_at": "2026-10-30T01:42:01.819164"
+              }
+            ],
+            "unavailable_fields": [
+              "operator",
+              "detailed_address",
+              "industry_positioning"
+            ],
+            "limitations": [
+              "ingested_snapshot_only_not_current_national_registry",
+              "cross_level_or_same_name_records_not_merged",
+              "uncollected_provinces_do_not_imply_no_bases",
+              "imported_at_is_not_source_publication_time"
+            ]
+          }
+        },
+        "source_kind": "platform"
+      }
+    },
+    "q5-chongqing-names": {
+      "raw": {
+        "data": [
+          {
+            "id": "47826658-8eaa-539a-b74e-aeb6d2cf9371",
+            "level": "national",
+            "title": "重庆公路物流基地",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2023年8月",
+            "recognized_year": 2023,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 1,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "44e418c7-15e1-5272-90fc-05b3ab6367c5",
+            "level": "national",
+            "title": "大足区电商产业园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2022年8月",
+            "recognized_year": 2022,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 2,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "eabf9be7-7d97-5be5-8e58-0c7fc3f16b60",
+            "level": "national",
+            "title": "秀山（武陵）现代物流园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2020年9月",
+            "recognized_year": 2020,
+            "recognized_month": 9,
+            "source_publish_at": null,
+            "source_order": 3,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "c546ae92-f929-514e-856c-4b1035dbe7d3",
+            "level": "national",
+            "title": "重庆网商产业园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 4,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "76378deb-f1cc-5339-8c2d-6c22fb103e31",
+            "level": "national",
+            "title": "重庆市渝中区国家电子商务示范基地",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 5,
+            "source_link_enabled": false,
+            "source_url": null
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q5-chongqing-names-7",
+          "page": 1,
+          "page_size": 200,
+          "total": 5
+        },
+        "aggregations": null
+      },
+      "answer": {
+        "data": [
+          {
+            "id": "47826658-8eaa-539a-b74e-aeb6d2cf9371",
+            "level": "national",
+            "title": "重庆公路物流基地",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2023年8月",
+            "recognized_year": 2023,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 1,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "44e418c7-15e1-5272-90fc-05b3ab6367c5",
+            "level": "national",
+            "title": "大足区电商产业园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2022年8月",
+            "recognized_year": 2022,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 2,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "eabf9be7-7d97-5be5-8e58-0c7fc3f16b60",
+            "level": "national",
+            "title": "秀山（武陵）现代物流园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2020年9月",
+            "recognized_year": 2020,
+            "recognized_month": 9,
+            "source_publish_at": null,
+            "source_order": 3,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "c546ae92-f929-514e-856c-4b1035dbe7d3",
+            "level": "national",
+            "title": "重庆网商产业园",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 4,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "76378deb-f1cc-5339-8c2d-6c22fb103e31",
+            "level": "national",
+            "title": "重庆市渝中区国家电子商务示范基地",
+            "province_code": "500000",
+            "province_name": "重庆市",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 5,
+            "source_link_enabled": false,
+            "source_url": null
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q5-chongqing-names-7",
+          "page": 1,
+          "page_size": 200,
+          "total": 5
+        },
+        "aggregations": null,
+        "source_kind": "platform"
+      }
+    },
+    "q5-zhejiang-structure": {
+      "raw": {
+        "data": [
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "second"
+            },
+            "record_count": 5
+          },
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "supplement"
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "first"
+            },
+            "record_count": 2
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q5-zhejiang-structure-8",
+          "page": 1,
+          "page_size": 200,
+          "total": 3
+        },
+        "aggregations": {
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "matched_total": 10,
+          "missing_counts": {
+            "level": 0,
+            "batch_code": 0
+          },
+          "coverage": {
+            "kind": "database_snapshot",
+            "unit": "registry_records",
+            "deduplication_key": "ecommerce_parks.id",
+            "imported_total": 312,
+            "source_site": "https://dzswgf.mofcom.gov.cn",
+            "source_files": [
+              {
+                "level": "national",
+                "filename": "国家电子商务示范基地.json",
+                "record_count": 170,
+                "province_count": 30,
+                "imported_at": "2026-10-30T01:42:01.779784"
+              },
+              {
+                "level": "provincial",
+                "filename": "省级电子商务示范基地.json",
+                "record_count": 142,
+                "province_count": 6,
+                "imported_at": "2026-10-30T01:42:01.819164"
+              }
+            ],
+            "unavailable_fields": [
+              "operator",
+              "detailed_address",
+              "industry_positioning"
+            ],
+            "limitations": [
+              "ingested_snapshot_only_not_current_national_registry",
+              "cross_level_or_same_name_records_not_merged",
+              "uncollected_provinces_do_not_imply_no_bases",
+              "imported_at_is_not_source_publication_time"
+            ]
+          }
+        }
+      },
+      "answer": {
+        "data": [
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "second"
+            },
+            "record_count": 5
+          },
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "supplement"
+            },
+            "record_count": 3
+          },
+          {
+            "dimensions": {
+              "level": "national",
+              "batch_code": "first"
+            },
+            "record_count": 2
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q5-zhejiang-structure-8",
+          "page": 1,
+          "page_size": 200,
+          "total": 3
+        },
+        "aggregations": {
+          "group_by": [
+            "level",
+            "batch_code"
+          ],
+          "matched_total": 10,
+          "missing_counts": {
+            "level": 0,
+            "batch_code": 0
+          },
+          "coverage": {
+            "kind": "database_snapshot",
+            "unit": "registry_records",
+            "deduplication_key": "ecommerce_parks.id",
+            "imported_total": 312,
+            "source_site": "https://dzswgf.mofcom.gov.cn",
+            "source_files": [
+              {
+                "level": "national",
+                "filename": "国家电子商务示范基地.json",
+                "record_count": 170,
+                "province_count": 30,
+                "imported_at": "2026-10-30T01:42:01.779784"
+              },
+              {
+                "level": "provincial",
+                "filename": "省级电子商务示范基地.json",
+                "record_count": 142,
+                "province_count": 6,
+                "imported_at": "2026-10-30T01:42:01.819164"
+              }
+            ],
+            "unavailable_fields": [
+              "operator",
+              "detailed_address",
+              "industry_positioning"
+            ],
+            "limitations": [
+              "ingested_snapshot_only_not_current_national_registry",
+              "cross_level_or_same_name_records_not_merged",
+              "uncollected_provinces_do_not_imply_no_bases",
+              "imported_at_is_not_source_publication_time"
+            ]
+          }
+        },
+        "source_kind": "platform"
+      }
+    },
+    "q5-zhejiang-names": {
+      "raw": {
+        "data": [
+          {
+            "id": "d7414555-7624-5fcc-a548-15be1890550c",
+            "level": "national",
+            "title": "菜鸟·金义电子商务新城",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2022年8月",
+            "recognized_year": 2022,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 1,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "bb7aa791-03bd-53ac-98f5-b753f2910c6a",
+            "level": "national",
+            "title": "嘉兴电子商务产业园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2021年8月",
+            "recognized_year": 2021,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 2,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "f12609ec-345b-5b84-a003-17efa40aabb2",
+            "level": "national",
+            "title": "义乌市国际陆港电商城",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2020年9月",
+            "recognized_year": 2020,
+            "recognized_month": 9,
+            "source_publish_at": null,
+            "source_order": 3,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "1195bef5-4bf9-5eca-8546-491a87bd0607",
+            "level": "national",
+            "title": "宁波市软件与服务外包产业园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 4,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "7732d68b-6f0b-50b7-bb2f-abb46581d2d3",
+            "level": "national",
+            "title": "宁波电子商务城",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 5,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "d2732bc0-10f9-59cb-ab61-15b4cda3216f",
+            "level": "national",
+            "title": "杭州北部软件园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 6,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "bc20ed44-2bc6-599b-9ef8-0fdc066df97e",
+            "level": "national",
+            "title": "杭州东方电子商务园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 7,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "5d84405c-fd88-5541-bf58-afc7d4c0695a",
+            "level": "national",
+            "title": "义乌中国小商品城-网商服务区",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 8,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "7269d862-678a-565b-a51e-12302816c844",
+            "level": "national",
+            "title": "金华电子商务创业园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 9,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "0c5de1e7-1b42-5661-8bd2-0cba97b947ad",
+            "level": "national",
+            "title": "杭州市西湖区文三街电子信息街",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 10,
+            "source_link_enabled": false,
+            "source_url": null
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q5-zhejiang-names-9",
+          "page": 1,
+          "page_size": 200,
+          "total": 10
+        },
+        "aggregations": null
+      },
+      "answer": {
+        "data": [
+          {
+            "id": "d7414555-7624-5fcc-a548-15be1890550c",
+            "level": "national",
+            "title": "菜鸟·金义电子商务新城",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2022年8月",
+            "recognized_year": 2022,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 1,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "bb7aa791-03bd-53ac-98f5-b753f2910c6a",
+            "level": "national",
+            "title": "嘉兴电子商务产业园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2021年8月",
+            "recognized_year": 2021,
+            "recognized_month": 8,
+            "source_publish_at": null,
+            "source_order": 2,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "f12609ec-345b-5b84-a003-17efa40aabb2",
+            "level": "national",
+            "title": "义乌市国际陆港电商城",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "supplement",
+            "batch_name": "增补",
+            "recognized_period": "2020年9月",
+            "recognized_year": 2020,
+            "recognized_month": 9,
+            "source_publish_at": null,
+            "source_order": 3,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "1195bef5-4bf9-5eca-8546-491a87bd0607",
+            "level": "national",
+            "title": "宁波市软件与服务外包产业园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 4,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "7732d68b-6f0b-50b7-bb2f-abb46581d2d3",
+            "level": "national",
+            "title": "宁波电子商务城",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 5,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "d2732bc0-10f9-59cb-ab61-15b4cda3216f",
+            "level": "national",
+            "title": "杭州北部软件园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 6,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "bc20ed44-2bc6-599b-9ef8-0fdc066df97e",
+            "level": "national",
+            "title": "杭州东方电子商务园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 7,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "5d84405c-fd88-5541-bf58-afc7d4c0695a",
+            "level": "national",
+            "title": "义乌中国小商品城-网商服务区",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "second",
+            "batch_name": "第二批",
+            "recognized_period": "2015年7月",
+            "recognized_year": 2015,
+            "recognized_month": 7,
+            "source_publish_at": null,
+            "source_order": 8,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "7269d862-678a-565b-a51e-12302816c844",
+            "level": "national",
+            "title": "金华电子商务创业园",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 9,
+            "source_link_enabled": false,
+            "source_url": null
+          },
+          {
+            "id": "0c5de1e7-1b42-5661-8bd2-0cba97b947ad",
+            "level": "national",
+            "title": "杭州市西湖区文三街电子信息街",
+            "province_code": "330000",
+            "province_name": "浙江省",
+            "batch_code": "first",
+            "batch_name": "首批",
+            "recognized_period": "2012年5月",
+            "recognized_year": 2012,
+            "recognized_month": 5,
+            "source_publish_at": null,
+            "source_order": 10,
+            "source_link_enabled": false,
+            "source_url": null
+          }
+        ],
+        "meta": {
+          "trace_id": "slice3-q5-zhejiang-names-9",
+          "page": 1,
+          "page_size": 200,
+          "total": 10
+        },
+        "aggregations": null,
+        "source_kind": "platform"
+      }
+    }
+  },
+  "limitations": [
+    "Not production PostgreSQL/network latency",
+    "10 repetitions are a small sequential sample",
+    "No upstream embedding calls, external web search or business writes"
+  ]
+}

@@ -328,6 +328,7 @@ class FileAndConfigurationTests(unittest.TestCase):
             "major_distribution": "aggregate_major_offerings", "occupation_dictionary": "query_occupation_dictionary",
             "standard_course": "query_standard_courses", "teaching_standard": "query_teaching_standards",
             "talent_training_plan": "list_open_talent_training_plans", "occupational_ability_analysis": "list_ability_analyses",
+            "ecommerce_demo_base": "aggregate_ecommerce_demo_bases",
         }
         for resource, tool in expected.items():
             output = io.StringIO()

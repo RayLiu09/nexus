@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from typing import Literal
 
@@ -12,6 +11,10 @@ from sqlalchemy.orm import Session
 
 from nexus_api import schemas
 from nexus_api.dependencies import Pagination, pagination_params
+from nexus_api.ecommerce_demo_bases import (
+    BATCH_NAMES as _BATCH_NAMES, SOURCE_FILES as _SOURCE_FILES,
+    base_payload as _payload, batch_name as _batch_name,
+)
 from nexus_api.responses import list_response, response
 from nexus_app import models
 from nexus_app.database import get_db
@@ -20,18 +23,6 @@ router = APIRouter()
 
 Level = Literal["national", "provincial"]
 Batch = Literal["first", "second", "supplement"]
-
-_BATCH_NAMES = {
-    "first": "首批",
-    "second": "第二批",
-    "supplement": "增补",
-}
-_SOURCE_HOST = "https://dzswgf.mofcom.gov.cn"
-_SOURCE_FILES = {
-    "national": "国家电子商务示范基地.json",
-    "provincial": "省级电子商务示范基地.json",
-}
-_SOURCE_PATH = re.compile(r"^/news/[0-9]+/[0-9]{4}/[0-9]{1,2}/[0-9]+\.html$")
 
 
 def _contains(column, value: str):
@@ -59,35 +50,6 @@ def _filters(
     if recognized_year is not None:
         clauses.append(models.EcommercePark.recognized_year == recognized_year)
     return clauses
-
-
-def _source_url(row: models.EcommercePark) -> str | None:
-    if not row.source_link_enabled or not _SOURCE_PATH.fullmatch(row.source_path):
-        return None
-    return f"{_SOURCE_HOST}{row.source_path}"
-
-
-def _batch_name(code: str | None) -> str | None:
-    return _BATCH_NAMES.get(code) if code else None
-
-
-def _payload(row: models.EcommercePark) -> dict:
-    return {
-        "id": row.id,
-        "level": row.level,
-        "title": row.title,
-        "province_code": row.province_code,
-        "province_name": row.province_name,
-        "batch_code": row.batch_code,
-        "batch_name": _batch_name(row.batch_code),
-        "recognized_period": row.recognized_period,
-        "recognized_year": row.recognized_year,
-        "recognized_month": row.recognized_month,
-        "source_publish_at": row.source_publish_at.isoformat() if row.source_publish_at else None,
-        "source_order": row.source_order,
-        "source_link_enabled": row.source_link_enabled,
-        "source_url": _source_url(row),
-    }
 
 
 def _base_select(clauses: list) -> Select:

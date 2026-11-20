@@ -1,0 +1,212 @@
+{
+  "source": {
+    "kind": "actual_database_readonly_snapshot",
+    "host": "10.100.11.182",
+    "database": "nexus_dev",
+    "transaction_read_only": "on",
+    "captured_at": "2026-11-19T08:38:47.068009+00:00",
+    "columns_excluded": [
+      "source_payload"
+    ],
+    "safe_columns_sha256": "c1f473d9890f4e47e4b60e17bd67a369ac2227fd36096f92f77bbbe381c9d399",
+    "record_count": 312,
+    "level_counts": {
+      "national": 170,
+      "provincial": 142
+    }
+  },
+  "environment": "New local API over isolated SQLite, real loopback HTTP via original skill executor; lifespan off; no remote deployment",
+  "answers": [
+    {
+      "id": "ecommerce_demo_base-01",
+      "resource_type": "ecommerce_demo_base",
+      "dimension": "简单查找",
+      "question": "平台有哪些国家级电子商务示范基地？列出前5家及认定年份。",
+      "status": "answered_for_ingested_snapshot",
+      "answer": "当前已入库国家级名录170条；按接口稳定顺序的前5条为：石景山区国家电子商务示范基地（中关村科技园区石景山园）（2015年7月，第二批）；中关村科技园区丰台园（2015年7月，第二批）；海淀区中关村软件园（2015年7月，第二批）；北京电子商务中心区（大兴区暨北京经济技术开发区）（2012年5月，首批）；北京市通州商务园（2012年5月，首批）。此顺序不是排名，不代表最新全国完整名录。",
+      "evidence_calls": [
+        {
+          "label": "q1-national-first5",
+          "tool": "query_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "level": "national",
+              "pageSize": 5
+            }
+          },
+          "trace_id": "slice3-q1-national-first5-2",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "id": "ecommerce_demo_base-02",
+      "resource_type": "ecommerce_demo_base",
+      "dimension": "条件筛选",
+      "question": "重庆市有哪些国家级和省级电子商务示范基地？按地区、等级和认定年份筛选。",
+      "status": "answered_with_coverage_limit",
+      "answer": "当前快照重庆市共5条，均为国家级：重庆公路物流基地（2023年8月，增补）；大足区电商产业园（2022年8月，增补）；秀山（武陵）现代物流园（2020年9月，增补）；重庆网商产业园（2015年7月，第二批）；重庆市渝中区国家电子商务示范基地（2012年5月，首批）。省级未收录重庆，不代表重庆现实中没有省级基地；地区代码500000，level和recognized_year可按需进一步AND筛选。",
+      "evidence_calls": [
+        {
+          "label": "q2-chongqing",
+          "tool": "query_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "province_code": "500000",
+              "pageSize": 200
+            }
+          },
+          "trace_id": "slice3-q2-chongqing-3",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "id": "ecommerce_demo_base-03",
+      "resource_type": "ecommerce_demo_base",
+      "dimension": "详情溯源",
+      "question": "读取某个已确认基地的认定批次、运营主体、地址与官方来源。",
+      "status": "partial_missing_source_fields",
+      "answer": "已确认记录“石景山区国家电子商务示范基地（中关村科技园区石景山园）”：国家级、第二批，认定年月2015年7月，来源文件国家电子商务示范基地.json，JSON定位/0/datalist/0。来源站点为商务部电子商务公共服务网，当前记录source_link_enabled=false、source_url为空，不能提供已开放的官方详情直达链接。运营主体和详细地址未存储；北京市仅为来源省级地区，不能代替基地地址。",
+      "evidence_calls": [
+        {
+          "label": "q3-detail",
+          "tool": "get_ecommerce_demo_base",
+          "arguments": {
+            "path": {
+              "base_id": "a722a60f-7639-5d9a-b666-8cd46f0b9e99"
+            }
+          },
+          "trace_id": "slice3-q3-detail-4",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "id": "ecommerce_demo_base-04",
+      "resource_type": "ecommerce_demo_base",
+      "dimension": "统计汇总",
+      "question": "按省份、认定级别和年份统计已入库电子商务示范基地数量。",
+      "status": "answered_for_ingested_snapshot",
+      "answer": "国家级170条、省级142条，共312条名录记录；按省级地区代码×认定级别×认定年份得到115组，已通过50/50/15三页完整读取。认定年份缺失3条，保留在unknown组。完整分组见all-province-level-year-groups.csv；记录不跨级或同名去重，不将unknown归入其他年份。国家级覆盖30个省级地区，省级覆盖6个地区。",
+      "evidence_calls": [
+        {
+          "label": "q4-groups",
+          "tool": "aggregate_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "group_by": [
+                "province_code",
+                "level",
+                "recognized_year"
+              ],
+              "pageSize": 50
+            }
+          },
+          "trace_id": "slice3-q4-groups-5",
+          "status": 200
+        },
+        {
+          "label": "q4-groups-page2",
+          "tool": "aggregate_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "group_by": [
+                "province_code",
+                "level",
+                "recognized_year"
+              ],
+              "pageSize": 50,
+              "page": 2
+            }
+          },
+          "trace_id": "slice3-q4-groups-page2-6",
+          "status": 200
+        },
+        {
+          "label": "q4-groups-page3",
+          "tool": "aggregate_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "group_by": [
+                "province_code",
+                "level",
+                "recognized_year"
+              ],
+              "pageSize": 50,
+              "page": 3
+            }
+          },
+          "trace_id": "slice3-q4-groups-page3-7",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "id": "ecommerce_demo_base-05",
+      "resource_type": "ecommerce_demo_base",
+      "dimension": "综合比较",
+      "question": "比较重庆与浙江示范基地的等级结构、认定批次及产业定位，并说明来源覆盖差异。",
+      "status": "partial_missing_industry_and_provincial_coverage",
+      "answer": "当前国家级名录中，重庆5条（首批1、第二批1、增补3），浙江10条（首批2、第二批5、增补3）。两地当前均无已收录省级名录，无法比较其现实中的省级覆盖。两地列表及批次汇总已分别读取；现有表没有产业定位字段，不能由名称中的物流、软件或电商字样推断官方产业定位，无法据此给出定位强弱或产业合作结论。国家级来源包含两地，省级快照仅覆盖江苏、山东、河南、湖北、广西、甘肃。",
+      "evidence_calls": [
+        {
+          "label": "q5-chongqing-structure",
+          "tool": "aggregate_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "province_code": "500000",
+              "group_by": [
+                "level",
+                "batch_code"
+              ],
+              "pageSize": 200
+            }
+          },
+          "trace_id": "slice3-q5-chongqing-structure-8",
+          "status": 200
+        },
+        {
+          "label": "q5-chongqing-names",
+          "tool": "query_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "province_code": "500000",
+              "pageSize": 200
+            }
+          },
+          "trace_id": "slice3-q5-chongqing-names-9",
+          "status": 200
+        },
+        {
+          "label": "q5-zhejiang-structure",
+          "tool": "aggregate_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "province_code": "330000",
+              "group_by": [
+                "level",
+                "batch_code"
+              ],
+              "pageSize": 200
+            }
+          },
+          "trace_id": "slice3-q5-zhejiang-structure-10",
+          "status": 200
+        },
+        {
+          "label": "q5-zhejiang-names",
+          "tool": "query_ecommerce_demo_bases",
+          "arguments": {
+            "query": {
+              "province_code": "330000",
+              "pageSize": 200
+            }
+          },
+          "trace_id": "slice3-q5-zhejiang-names-11",
+          "status": 200
+        }
+      ]
+    }
+  ]
+}

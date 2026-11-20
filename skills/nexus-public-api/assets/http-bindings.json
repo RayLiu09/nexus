@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "source": "public OpenAPI /open/v1",
-  "sha256": "ba57b3d6d0c63c33b4e058386c7f297519e6678ec4a82da1a8dfb91def4b5a5f",
+  "sha256": "385fec95747982daaff121d990cbc37a4f912638dbe80bab1eaa0927339025fb",
   "bindings": [
     {
       "name": "find_documents",
@@ -2250,6 +2250,833 @@
             "meta"
           ],
           "title": "ApiResponse[list[ResourceRead]]"
+        },
+        "422": {
+          "properties": {
+            "detail": {
+              "items": {
+                "properties": {
+                  "loc": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "type": "array",
+                    "title": "Location"
+                  },
+                  "msg": {
+                    "type": "string",
+                    "title": "Message"
+                  },
+                  "type": {
+                    "type": "string",
+                    "title": "Error Type"
+                  },
+                  "input": {
+                    "title": "Input"
+                  },
+                  "ctx": {
+                    "type": "object",
+                    "title": "Context"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "loc",
+                  "msg",
+                  "type"
+                ],
+                "title": "ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        }
+      }
+    },
+    {
+      "name": "query_ecommerce_demo_bases",
+      "method": "GET",
+      "path": "/open/v1/ecommerce-demo-bases",
+      "tags": [
+        "public-business"
+      ],
+      "arguments": [
+        {
+          "argument": "query.level",
+          "in": "query",
+          "name": "level",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.q",
+          "in": "query",
+          "name": "q",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.province_code",
+          "in": "query",
+          "name": "province_code",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.recognized_year",
+          "in": "query",
+          "name": "recognized_year",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.batch",
+          "in": "query",
+          "name": "batch",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.page",
+          "in": "query",
+          "name": "page",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.pageSize",
+          "in": "query",
+          "name": "pageSize",
+          "style": "form",
+          "explode": true
+        }
+      ],
+      "authentication": {
+        "header": "X-API-Key",
+        "injected_by": "executor"
+      },
+      "executor_defaults": {},
+      "potential_ingest_side_effect": false,
+      "response_schemas": {
+        "200": {
+          "properties": {
+            "data": {
+              "items": {
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "title": "Id"
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "national",
+                      "provincial"
+                    ],
+                    "title": "Level"
+                  },
+                  "title": {
+                    "type": "string",
+                    "title": "Title"
+                  },
+                  "province_code": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Province Code"
+                  },
+                  "province_name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Province Name"
+                  },
+                  "batch_code": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "first",
+                          "second",
+                          "supplement"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Batch Code"
+                  },
+                  "batch_name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Batch Name"
+                  },
+                  "recognized_period": {
+                    "type": "string",
+                    "title": "Recognized Period"
+                  },
+                  "recognized_year": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Recognized Year"
+                  },
+                  "recognized_month": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Recognized Month"
+                  },
+                  "source_publish_at": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Source Publish At"
+                  },
+                  "source_order": {
+                    "type": "integer",
+                    "title": "Source Order"
+                  },
+                  "source_link_enabled": {
+                    "type": "boolean",
+                    "title": "Source Link Enabled"
+                  },
+                  "source_url": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Source Url"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "id",
+                  "level",
+                  "title",
+                  "recognized_period",
+                  "source_order",
+                  "source_link_enabled"
+                ],
+                "title": "EcommerceDemoBaseRead"
+              },
+              "type": "array",
+              "title": "Data"
+            },
+            "meta": {
+              "properties": {
+                "trace_id": {
+                  "type": "string",
+                  "title": "Trace Id"
+                },
+                "page": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page"
+                },
+                "page_size": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page Size"
+                },
+                "total": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Total"
+                }
+              },
+              "type": "object",
+              "required": [
+                "trace_id"
+              ],
+              "title": "ResponseMeta"
+            },
+            "aggregations": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Aggregations"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "meta"
+          ],
+          "title": "ListResponse[EcommerceDemoBaseRead]"
+        },
+        "422": {
+          "properties": {
+            "detail": {
+              "items": {
+                "properties": {
+                  "loc": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "type": "array",
+                    "title": "Location"
+                  },
+                  "msg": {
+                    "type": "string",
+                    "title": "Message"
+                  },
+                  "type": {
+                    "type": "string",
+                    "title": "Error Type"
+                  },
+                  "input": {
+                    "title": "Input"
+                  },
+                  "ctx": {
+                    "type": "object",
+                    "title": "Context"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "loc",
+                  "msg",
+                  "type"
+                ],
+                "title": "ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        }
+      }
+    },
+    {
+      "name": "aggregate_ecommerce_demo_bases",
+      "method": "GET",
+      "path": "/open/v1/ecommerce-demo-bases/aggregate",
+      "tags": [
+        "public-business"
+      ],
+      "arguments": [
+        {
+          "argument": "query.group_by",
+          "in": "query",
+          "name": "group_by",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.level",
+          "in": "query",
+          "name": "level",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.q",
+          "in": "query",
+          "name": "q",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.province_code",
+          "in": "query",
+          "name": "province_code",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.recognized_year",
+          "in": "query",
+          "name": "recognized_year",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.batch",
+          "in": "query",
+          "name": "batch",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.page",
+          "in": "query",
+          "name": "page",
+          "style": "form",
+          "explode": true
+        },
+        {
+          "argument": "query.pageSize",
+          "in": "query",
+          "name": "pageSize",
+          "style": "form",
+          "explode": true
+        }
+      ],
+      "authentication": {
+        "header": "X-API-Key",
+        "injected_by": "executor"
+      },
+      "executor_defaults": {},
+      "potential_ingest_side_effect": false,
+      "response_schemas": {
+        "200": {
+          "properties": {
+            "data": {
+              "items": {
+                "properties": {
+                  "dimensions": {
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": "object",
+                    "title": "Dimensions"
+                  },
+                  "record_count": {
+                    "type": "integer",
+                    "title": "Record Count"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "dimensions",
+                  "record_count"
+                ],
+                "title": "EcommerceDemoBaseGroupRead"
+              },
+              "type": "array",
+              "title": "Data"
+            },
+            "meta": {
+              "properties": {
+                "trace_id": {
+                  "type": "string",
+                  "title": "Trace Id"
+                },
+                "page": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page"
+                },
+                "page_size": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page Size"
+                },
+                "total": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Total"
+                }
+              },
+              "type": "object",
+              "required": [
+                "trace_id"
+              ],
+              "title": "ResponseMeta"
+            },
+            "aggregations": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Aggregations"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "meta"
+          ],
+          "title": "ListResponse[EcommerceDemoBaseGroupRead]"
+        },
+        "422": {
+          "properties": {
+            "detail": {
+              "items": {
+                "properties": {
+                  "loc": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        }
+                      ]
+                    },
+                    "type": "array",
+                    "title": "Location"
+                  },
+                  "msg": {
+                    "type": "string",
+                    "title": "Message"
+                  },
+                  "type": {
+                    "type": "string",
+                    "title": "Error Type"
+                  },
+                  "input": {
+                    "title": "Input"
+                  },
+                  "ctx": {
+                    "type": "object",
+                    "title": "Context"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "loc",
+                  "msg",
+                  "type"
+                ],
+                "title": "ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        }
+      }
+    },
+    {
+      "name": "get_ecommerce_demo_base",
+      "method": "GET",
+      "path": "/open/v1/ecommerce-demo-bases/{base_id}",
+      "tags": [
+        "public-business"
+      ],
+      "arguments": [
+        {
+          "argument": "path.base_id",
+          "in": "path",
+          "name": "base_id",
+          "style": "simple",
+          "explode": false
+        }
+      ],
+      "authentication": {
+        "header": "X-API-Key",
+        "injected_by": "executor"
+      },
+      "executor_defaults": {},
+      "potential_ingest_side_effect": false,
+      "response_schemas": {
+        "200": {
+          "properties": {
+            "data": {
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "title": "Id"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "national",
+                    "provincial"
+                  ],
+                  "title": "Level"
+                },
+                "title": {
+                  "type": "string",
+                  "title": "Title"
+                },
+                "province_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Province Code"
+                },
+                "province_name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Province Name"
+                },
+                "batch_code": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "first",
+                        "second",
+                        "supplement"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Batch Code"
+                },
+                "batch_name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Batch Name"
+                },
+                "recognized_period": {
+                  "type": "string",
+                  "title": "Recognized Period"
+                },
+                "recognized_year": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Recognized Year"
+                },
+                "recognized_month": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Recognized Month"
+                },
+                "source_publish_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Source Publish At"
+                },
+                "source_order": {
+                  "type": "integer",
+                  "title": "Source Order"
+                },
+                "source_link_enabled": {
+                  "type": "boolean",
+                  "title": "Source Link Enabled"
+                },
+                "source_url": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Source Url"
+                },
+                "source_file": {
+                  "type": "string",
+                  "title": "Source File"
+                },
+                "source_locator": {
+                  "type": "string",
+                  "title": "Source Locator"
+                }
+              },
+              "type": "object",
+              "required": [
+                "id",
+                "level",
+                "title",
+                "recognized_period",
+                "source_order",
+                "source_link_enabled",
+                "source_file",
+                "source_locator"
+              ],
+              "title": "EcommerceDemoBaseDetailRead"
+            },
+            "meta": {
+              "properties": {
+                "trace_id": {
+                  "type": "string",
+                  "title": "Trace Id"
+                },
+                "page": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page"
+                },
+                "page_size": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Page Size"
+                },
+                "total": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Total"
+                }
+              },
+              "type": "object",
+              "required": [
+                "trace_id"
+              ],
+              "title": "ResponseMeta"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "meta"
+          ],
+          "title": "ApiResponse[EcommerceDemoBaseDetailRead]"
         },
         "422": {
           "properties": {

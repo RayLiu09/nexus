@@ -1,6 +1,6 @@
 # Agent 公开用数接口与 A/B 缺口交付
 
-本次实现以 `agent_openapi_gap_analysis_2026-10-22.md` 的 A/B 类建议和资产中心最新 17 类可见入口为范围（2026-10-26 补充职业分类大典及教育部布点同步口径）。C 类资源变更/增量同步接口不在本次交付内。公开消费别名由 `nexus-api` 提供，前缀 `/open/v1`；业务 API 保持 `/v1`，内部 Console API 不进入工具清单。
+本次实现以 `agent_openapi_gap_analysis_2026-10-22.md` 的A/B类建议为基础，现覆盖资产中心18类可见入口（2026-10-26补充职业分类大典及教育部布点同步口径；2026-11-19补充电商示范基地）。C类资源变更/增量同步接口不在本次交付内。公开消费别名由`nexus-api`提供，前缀`/open/v1`；业务API保持`/v1`，内部Console API不进入工具清单。
 
 ## A/B 覆盖
 
@@ -8,13 +8,14 @@
 
 | 缺口 | 接口 | 行为和数据口径 |
 | --- | --- | --- |
-| A 资源发现 | `GET /data-resources` | 17 类入口的编码、来源类型、可消费数量、数量单位、业务能力、检索知识类型、检索通道、实际查询参数及限制；计数遵循公开边界 |
+| A 资源发现 | `GET /data-resources` | 18类入口的编码、来源类型、可消费数量、数量单位、业务能力、检索知识类型、检索通道、实际查询参数及限制；计数遵循公开边界 |
 | 专业布点 | `GET /major-offerings`、`/aggregate` | 教育部 API 同步与控制台 Excel 导入事实直接入库，无 AI 治理；同年同校同专业跨来源去重，仅代表已入库覆盖；与专业简介、培养方案课程统计无关 |
 | 职业分类大典 | `GET /occupation-dictionary` | 2022 年版已核验导入基础表，职业大类/小类/名称 AND 检索，返回类别、层级、编码、职业名称、定义、工作任务；只读、无 AI 治理、不依赖资产版本或 ref |
 | A 文档发现 | 增强 `GET /assets` | 标题、resource_type、多 domains、主题、区域/行业、专业/院校/层次、源发布日期；tags_match 显式 any/all；返回白名单业务元数据 |
 | A 专业简介 | `GET /major-profile-documents` | 当前文档及四项专业身份元数据，遵循人工修改和清空值；不依赖已退役 MajorProfile 投影 |
 | A 市场岗位 | `GET /market-jobs`、`/{job_id}` | 同页面读取 raw_jobs + provenance；岗位/企业/行业/学历/经验/采集时间查询，保留源字段、provider/upstream ID、来源链接 |
 | A 园区与企业 | `GET /industrial-parks`、`/{park_id}`；`GET /enterprises`、`/{enterprise_id}` | 名称/行业、经营范围、所属园区查询；园区企业数量及真实关系 |
+| 电商示范基地 | `GET /ecommerce-demo-bases`、`/aggregate`、`/{base_id}` | 独立ecommerce_parks名录，两级筛选、分组统计和按需来源详情；不使用园区表、不推断缺失字段 |
 | A 教学标准 | `GET /teaching-standard-libraries`、`/{library_id}` | 专业代码/名称、层次、修业年限、课程数量、引用锚点；职业面向及正文定位；当前 available 文档 + 正式分类，不限制库状态 |
 | A 标准课程 | `GET /teaching-standard-courses`、`/{course_id}` | 跨标准检索课程名、专业、类型及标签；学时语义 suggested，标签语义 derived；返回章节页码和证据绑定；标准目录 `quality_flags` 会标记去 Unicode/空白格式化后疑似重复的源课程行，源行和证据仍保留 |
 | A 教材 | `GET /course-textbooks`、`/{profile_id}` | 教材名、理论/实训类型、出版社、主编、出版年；返回已有知识/任务大纲能力 |
@@ -32,6 +33,10 @@
 | A/B 已有能力复用 | 原有专业布点及聚合、问答、正文/chunks/下载、职业能力任务/关系、院校课程统计、培养方案图谱 | 不复制同义业务 API；由生成工具封装现有公开能力 |
 
 ## 参数合同
+
+- 电商示范基地：level可选national/provincial，省略查询两级；q为基地名称字面包含（转义通配符），province_code为6位来源地区代码，recognized_year为1900–2100的来源认定年份，batch为first/second/supplement，条件按AND组合。provincial+batch返回422。列表默认20、最多200条，稳定排序level/province_code/source_order/id。计数是名录记录，不跨级或同名去重，不代表最新全国完整名录。
+- 基地聚合`group_by`为重复参数，支持province_code、level、recognized_year、batch_code，1–4项不可重复，默认前三项。全量过滤后分组再分页；data返回dimensions/record_count，meta.total为分组数，顶层aggregations.matched_total为匹配记录数，missing_counts为选定维度的NULL/空值记录数。coverage描述全库两级快照，与当前筛选范围独立，含入库数量/地区覆盖/来源文件和明确缺失字段；imported_at不代表认定时间或来源发布时间。NULL年份/批次保留成组，不能从统计中丢弃。分组结果较多时分页，不能用被skill截断的本地列表做全量统计。
+- 基地详情返回列表字段及source_file/source_locator；source_url只从允许的官方路径派生且尊重source_link_enabled，来源未开放或路径非法时为空，不访问网页验证有效性。接口不返回source_payload、不制造asset/ref、不支持generic bundle或语义检索。运营主体、详细地址、产业定位未存储，不能从基地名称推断；地区未收录不等于现实中没有基地。三个接口需部署新服务，旧服务404表示接口未上线而非零数据。
 
 - 专业布点 `year`、`province_code`、`major_code`、`school_code` 精确匹配，`province_name` 行政区名称归一化后精确匹配，`major_name`、`school_name` 按转义字面子串匹配，条件按 AND 组合。聚合 `group_by` 支持 year、province_code、province_name、major_code、major_name，最多 5 项且不可重复，数组使用 repeated keys。返回选定维度、record_count、institution_count；学校按标识优先、名称兜底去重，跨年记录数可大于学校数，meta.total 为分组数。
 - 职业分类大典 `major_group`、`minor_group`、`occupation_name` 均按字面子串匹配且组合为 AND，前两项可传编码前缀；返回 edition、occupation_code、occupation_category、major_group、minor_group（可空）、occupation_name、definition、work_tasks。数据来自名录及同版 PDF 补齐，所附 PDF 为社会公示稿，不声明全国完整名录。

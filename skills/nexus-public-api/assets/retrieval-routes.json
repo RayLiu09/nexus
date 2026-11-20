@@ -22,6 +22,7 @@
     "market_job": "market_jobs",
     "enterprise": "enterprises_parks",
     "industrial_park": "enterprises_parks",
+    "ecommerce_demo_base": "ecommerce_demo_bases",
     "major_offering": "major_offerings",
     "major_distribution": "major_offerings",
     "occupation": "occupation_dictionary",
@@ -99,6 +100,15 @@
         "get_industrial_park"
       ],
       "default_limits": {"page_size": 20},
+      "supports_batch_evidence": false,
+      "allow_external_search": false
+    },
+    "ecommerce_demo_bases": {
+      "description": "Query national/provincial demonstration-base registry records, aggregate full matching coverage, and read source details only when needed. These are not industrial parks; no semantic KB or generic evidence bundle.",
+      "resource_types": ["ecommerce_demo_base"],
+      "tools": ["query_ecommerce_demo_bases", "aggregate_ecommerce_demo_bases", "get_ecommerce_demo_base"],
+      "knowledge_types": {"ecommerce_demo_base": []},
+      "default_limits": {"page_size": 20, "aggregate_page_size": 100},
       "supports_batch_evidence": false,
       "allow_external_search": false
     },

@@ -84,6 +84,16 @@ call query_teaching_standards '{"query":{"occupation":"电子商务师","pageSiz
 # 企业 / 园区
 call query_enterprises '{"query":{"industry":"电子商务","pageSize":20}}'
 call query_industrial_parks '{"query":{"industry":"电商","pageSize":20}}'
+
+# 电商示范基地独立于产业园区；新服务版本部署后可用
+route --resource-type ecommerce_demo_base
+call query_ecommerce_demo_bases '{"query":{"province_code":"500000","pageSize":20}}' --response-mode answer
+# 全量分组后分页，meta.total是组数，aggregations.matched_total是名录记录数。
+# 每页50组适配12K上下文预算；继续page=2...，检查本地data_truncated。
+call aggregate_ecommerce_demo_bases '{"query":{"group_by":["province_code","level","recognized_year"],"pageSize":50,"page":1}}' \
+  --response-mode answer --max-output-chars 12000
+# 仅需核对来源时读取真实返回ID；无需再bundle
+call get_ecommerce_demo_base '{"path":{"base_id":"<returned-base-id>"}}' --response-mode answer
 ```
 
 结构化岗位、企业、园区、专业布点、职业大典、教学标准、培养方案和能力分析应沿对应路由调用专用接口；只有用户明确要求某条记录的详情时，才继续调用其 get 接口。

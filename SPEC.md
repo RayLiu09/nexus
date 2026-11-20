@@ -435,6 +435,14 @@ Asset Center IA-1:
   The provincial tab provides a paginated list. Both read database-backed
   name/province/year filters, restore URL state and preserve submitted
   filters during pagination. Failed reads show retry/trace information.
+  Public Agent consumption uses `/open/v1/ecommerce-demo-bases`, `/aggregate`
+  and `/{base_id}` with API Key, trace and read audit. Queries may combine
+  national/provincial records; counts retain registry-record identity rather
+  than merging names or levels. Grouping supports province code, level,
+  recognition year and batch, including unknown values, with explicit matched
+  record count, group count, missing counts and snapshot coverage. No operator,
+  detailed address or industry positioning is inferred. Source details are
+  fetched on demand; no generic evidence bundle or semantic KB is advertised.
   Job-demand domain records and APIs remain available, while their technical
   Asset Detail no longer exposes the `结构化图谱` tab; the business view itself
   is a later Asset Center task.

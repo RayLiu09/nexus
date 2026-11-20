@@ -4,6 +4,19 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from nexus_api.schemas import EcommerceDemoBaseRead
+
+
+class EcommerceDemoBaseDetailRead(EcommerceDemoBaseRead):
+    source_file: str
+    source_locator: str
+
+
+class EcommerceDemoBaseGroupRead(BaseModel):
+    dimensions: dict[str, str | int | None]
+    record_count: int
+
+
 class MarketJobSourceFields(BaseModel):
     title_raw: str
     company_name_raw: str | None

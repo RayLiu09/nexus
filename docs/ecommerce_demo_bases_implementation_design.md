@@ -4,6 +4,8 @@
 > 本期目标：资产中心 → 市场数据 → 电商示范基地，包含“国家”“省份”两个只读视图。
 > 用户约束：数据持久化到数据库；后续检索查询数据库；不提供编辑、删除等操作。
 
+> 2026-11-19公开消费增补：已在工作区实现`/open/v1/ecommerce-demo-bases`列表、详情及分组聚合，提供API Key认证/审计和独立skill路由；不改变下述原Console双视图合同。新公开能力尚需部署，详见[公开用数合同](api/public_agent_data_api.md)及[单元3任务包](task-packages/wk_nexus_public_api_optimization_slice3_task_package.md)。
+
 ## 1. 实施结论与边界
 
 推荐采用 **JSON 初始化导入 → PostgreSQL 业务事实表 → 认证只读 API → Console 双视图**。

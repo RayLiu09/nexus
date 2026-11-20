@@ -49,6 +49,7 @@ RETRIEVAL_CAPABILITIES = {
     "market_job": ["catalog", "structured_query", "evidence_bundle"],
     "industrial_park": ["catalog", "structured_query", "evidence_bundle"],
     "enterprise": ["catalog", "structured_query", "evidence_bundle"],
+    "ecommerce_demo_base": ["catalog", "structured_query"],
     "occupation_dictionary": ["catalog", "structured_query"],
     "teaching_standard": ["catalog", "structured_query", "graph"],
     "standard_course": ["catalog", "structured_query"],
@@ -61,7 +62,7 @@ def count_statement(session, stmt):
 
 @router.get("/data-resources", operation_id="discover_data_resources", response_model=schemas.ApiResponse[list[dto.ResourceRead]])
 def discover(request: Request, caller=Depends(require_api_caller), session: Session = Depends(get_db)):
-    """发现资产中心 17 类可见资源及其公开接口、过滤参数、能力与数量。包含教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。"""
+    """发现资产中心18类可见资源及其公开接口、过滤参数、能力与数量。含电子商务示范基地、教育部同步专业布点及职业分类大典；数量仅代表已入库覆盖。"""
     from nexus_api.api.open_business import standard_statement, course_statement, textbook_statement
     # Derive supported filters from the actual HTTP schema rather than a second registry.
     paths = request.app.openapi()["paths"]
@@ -87,6 +88,9 @@ def discover(request: Request, caller=Depends(require_api_caller), session: Sess
         ("market_job", "市场岗位", models.RawJob, "/open/v1/market-jobs", ["list", "detail", "aggregate"], ["raw_jobs_not_legacy_job_demand_records", "collection_time_not_publication_time", "salary_is_source_text"]),
         ("industrial_park", "产业园区", models.IndustrialPark, "/open/v1/industrial-parks", ["list", "detail", "enterprises"], ["ingested_coverage_only"]),
         ("enterprise", "企业数据", models.Enterprise, "/open/v1/enterprises", ["list", "detail"], ["no_inferred_cooperation_relationships"]),
+        ("ecommerce_demo_base", "电商示范基地", models.EcommercePark, "/open/v1/ecommerce-demo-bases", ["list", "detail", "aggregate"],
+         ["ingested_snapshot_only", "registry_records_not_unique_physical_bases", "not_industrial_parks",
+          "no_operator_address_or_industry_positioning", "source_link_may_be_unavailable"]),
     ]
     for code, name, model, endpoint, capabilities, limitations in specs:
         add(code, name, "record", None, select(model.id), endpoint, capabilities, "independent_domain_records", limitations)

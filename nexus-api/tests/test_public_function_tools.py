@@ -122,3 +122,19 @@ def test_career_and_region_filters_and_non_active_statuses_are_exported():
         fields = data.get("items", data)["properties"]
         assert set(fields["status"]["enum"]) == {"review", "active", "superseded"}
         assert {"evidence_block_ids", "locator", "source_name", "source_code"} <= fields["career_orientation"]["items"]["properties"].keys()
+
+
+def test_ecommerce_demo_base_tools_expose_only_readonly_registry_contracts():
+    catalog = generate_catalog(create_app().openapi())
+    tools = {item['name']: item for item in catalog['tools']}
+    bindings = {item['name']: item for item in catalog['bindings']}
+    for name in ('query_ecommerce_demo_bases', 'aggregate_ecommerce_demo_bases', 'get_ecommerce_demo_base'):
+        assert bindings[name]['method'] == 'GET'
+        assert bindings[name]['tags'] == ['public-business']
+    query = tools['aggregate_ecommerce_demo_bases']['parameters']['properties']['query']['properties']
+    assert query['group_by']['items']['enum'] == ['province_code', 'level', 'recognized_year', 'batch_code']
+    assert query['group_by']['maxItems'] == 4
+    assert query['pageSize']['maximum'] == 200
+    fields = bindings['get_ecommerce_demo_base']['response_schemas']['200']['properties']['data']['properties']
+    assert {'source_file', 'source_locator', 'source_url', 'recognized_year', 'level'} <= fields.keys()
+    assert not {'source_payload', 'asset_id', 'normalized_ref_id', 'operator', 'detailed_address'} & fields.keys()

@@ -1,11 +1,11 @@
 ---
 name: nexus-public-api
-description: Call NEXUS public /open/v1 data tools (55 read-only tools across 16 resource tags) for documents, policies, major offerings, teaching standards, market jobs, enterprises, industrial parks, occupation dictionary, ability analyses, evidence bundles, knowledge chunks and web search. Use when the user asks for NEXUS asset-center data, vocational-education data, job/major/industry data, document citations or evidence, or explicitly asks to call a NEXUS public API.
+description: Call NEXUS public /open/v1 data tools (58 read-only tools across 16 resource tags) for documents, policies, major offerings, teaching standards, market jobs, enterprises, industrial parks, ecommerce demonstration bases, occupation dictionary, ability analyses, evidence bundles, knowledge chunks and web search. Use when the user asks for NEXUS asset-center data, vocational-education data, job/major/industry data, document citations or evidence, or explicitly asks to call a NEXUS public API.
 ---
 
 # NEXUS Public API
 
-通过 `/open/v1` 只读接口查询 NEXUS 资产中心公开数据。工具清单从公开 OpenAPI 生成，共55个工具、16个资源标签，覆盖17类可见资产入口；执行契约与参数Schema随Skill一起分发。
+通过 `/open/v1` 只读接口查询 NEXUS 资产中心公开数据。工具清单从公开 OpenAPI 生成，共58个工具、16个资源标签，覆盖18类可见资产入口；执行契约与参数Schema随Skill一起分发。
 
 - 检索路由：先运行 `route <route>` 或 `route --resource-type <type>`，只加载当前资产形态所需的最小工具集合。
 - 工具索引：仅在路由无法覆盖任务或需要探索时运行 `list`，不要凭记忆猜工具名。
@@ -76,7 +76,7 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 | 标签 | 用途 |
 | --- | --- |
 | `assets` | 文档目录、资产详情、版本 |
-| `public-business` | 教材、企业、园区、市场岗位、教学标准、标准课程、培养方案课程等业务记录 |
+| `public-business` | 教材、企业、园区、电商示范基地、市场岗位、教学标准、标准课程、培养方案课程等业务记录 |
 | `public-discovery` | 数据资源发现、实体消歧、专业简介 |
 | `public-evidence` | 证据包、知识/任务大纲、章节、图谱 |
 | `normalized-refs` | 归一化文档/记录、正文、chunks、治理结果 |
@@ -89,7 +89,7 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 | `major-courses` | 院校课程统计 |
 | `external-search` | Firecrawl 与 DeepSeek 联网搜索 |
 
-只加载当前任务需要的标签，不要一次向模型传入全部55个工具。
+只加载当前任务需要的标签，不要一次向模型传入全部58个工具。
 
 ## 资产形态路由
 
@@ -97,6 +97,7 @@ python3 "$SKILL/scripts/nexus_call.py" call find_documents \
 
 - 文档、政策、报告、专业简介、教材和案例：使用 `document` 路由；先目录/标签发现，再按内容需求读取相关正文或限定范围语义检索。已知业务标签足够表达问题时，优先指定`tag_type`、`tags`和`is_exact_matched=true`；多个条件须全部满足时用`tags_match=all`。标签只证明资料匹配，目录本身不能支持正文结论。精确标签不足才根据问题转语义标签/内容检索，不全局强制改写匹配模式。
 - 岗位、企业、园区、专业布点、职业大典、教学标准、培养方案和能力分析：优先使用对应结构化路由的 list/query/aggregate 工具，不用通用文档检索替代。
+- 电商示范基地：使用`ecommerce_demo_bases`路由，`query_ecommerce_demo_bases`发现、`aggregate_ecommerce_demo_bases`统计、`get_ecommerce_demo_base`按需核对来源；基地不等于产业园区。省略level查询两级，national/provincial分别限定国家/省级；q仅名称字面包含，地区用province_code，年份用recognized_year。统计单位是名录记录，不跨级/同名合并；meta.total为分组数，aggregations.matched_total为记录数，unknown年份保留NULL组。全量分析须分页或分批，12K预算下建议每页50组并检查截断；不能把coverage全库数量当当前筛选数。没有运营主体、详细地址或产业定位字段，不从名称推断。无语义KB、不支持通用bundle；详情source_url为空表示来源未开放或路径不可用，不能编造官方直达链接或用imported_at冒充认定/发布时间。该能力需部署新服务，旧版本404应报告接口未上线，不能称为零条记录。
 - normalized ref、chunk、section 和图谱：必须先使用已返回的 ref 或节点锚点，再读取详情。
 - 外部搜索：内部数据不足以支撑问题（零命中、只有标题、正文缺失、时效/覆盖不足）时可使用`external_search`，无需为了这次只读补充再询问用户；用户限定仅本地/平台或问题涉及敏感材料时遵守其边界。不要把500/503直接解释为库内无数据。只发送公开问题词，不向外传内部正文；默认保持`auto_ingest=false`。答复区分`【平台资产】`、`【联网搜索】`和模型的`【分析归纳】`，网络来源注明真实标题、URL及可用的发布/访问时间；不得编造日期、把网页称为已入库资产，或把检索摘要写成已核实全文。
 
